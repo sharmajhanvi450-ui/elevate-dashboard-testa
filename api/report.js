@@ -31,6 +31,21 @@ export default async function handler(req, res) {
     return r.json();
   }
 
+  async function fetchAllUsers(token) {
+    let all = [];
+    // Try every known user type and merge results
+    const types = ["ActiveUsers", "DeactiveUsers", "AdminUsers", "StandardUsers", "AllUsers"];
+    for (const type of types) {
+      try {
+        const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=${type}&per_page=200`);
+        if (ud?.users?.length) all = all.concat(ud.users);
+      } catch(e) { /* skip unsupported types */ }
+    }
+    // Deduplicate by id
+    const seen = new Set();
+    return all.filter(u => { if (seen.has(u.id)) return false; seen.add(u.id); return true; });
+  }
+
   async function fetchAllPages(token, module, dateField, date) {
     let all = [], page = 1;
     while (true) {
@@ -49,20 +64,21 @@ export default async function handler(req, res) {
     if (!date || !slot || !role) return res.status(400).json({ error: "Missing date, slot or role" });
 
     const token = await getAccessToken();
-
-    // Use AllUsers to get every user regardless of status
-    const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`);
-    const allUsers = ud?.users || [];
+    const allUsers = await fetchAllUsers(token);
 
     // Role names are like "Builder - Soham", "Closer - Tejasvi"
-    // role param is "Builder" or "Closer" — match start of role name
-    const users = allUsers.filter(u => (u.role?.name || "").startsWith(role));
+    // Match any user whose role name contains the keyword
+    const users = allUsers.filter(u => {
+      const rn = (u.role?.name || "");
+      return rn.toLowerCase().includes(role.toLowerCase());
+    });
 
     if (!users.length) {
       const roleNames = [...new Set(allUsers.map(u => u.role?.name).filter(Boolean))];
       return res.status(404).json({
-        error: `No users found with role starting with "${role}".`,
-        available_roles: roleNames
+        error: `No users found matching "${role}".`,
+        available_roles: roleNames,
+        total_fetched: allUsers.length
       });
     }
 
