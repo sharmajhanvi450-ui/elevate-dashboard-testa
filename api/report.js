@@ -28,6 +28,7 @@ export default async function handler(req, res) {
 
   async function zohoGet(token, url) {
     const r = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+    if (r.status === 204) return {};
     return r.json();
   }
 
