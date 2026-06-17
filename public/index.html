@@ -77,6 +77,9 @@
     padding: 2px 7px; border-radius: 20px; border: 1.5px solid currentColor;
     margin-top: 3px; letter-spacing: 0.3px; opacity: 0.85;
   }
+  .on-leave-badge {
+    color: #5a5a8a; border-color: #8888bb; background: #eeeef8;
+  }
 
   .bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
@@ -111,14 +114,6 @@
     <div class="field">
       <label>Date</label>
       <input type="date" id="inp-date">
-    </div>
-    <div class="field">
-      <label>Report slot</label>
-      <select id="inp-slot">
-        <option value="1pm">1 PM — Morning (10 AM – 1 PM)</option>
-        <option value="4pm">4 PM — Midday (10 AM – 4 PM)</option>
-        <option value="7pm">7 PM — End of Day (10 AM – 7 PM)</option>
-      </select>
     </div>
     <div class="field">
       <label>Role</label>
@@ -161,11 +156,7 @@
 </div>
 
 <script>
-const SLOTS = {
-  "1pm": { fraction: 1/3, display: "10:00 AM – 1:00 PM IST" },
-  "4pm": { fraction: 2/3, display: "10:00 AM – 4:00 PM IST" },
-  "7pm": { fraction: 1,   display: "10:00 AM – 7:00 PM IST" }
-};
+const DISPLAY = "9:00 AM – 8:00 PM EST";
 const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:1 };
 const WEIGHTS = { calls:0.15, minutes:0.15, leads:0.20, discoveries:0.20, presBooked:0.15, presCompleted:0.15 };
 
@@ -189,7 +180,6 @@ function setError(msg){ const el=document.getElementById("error-box"); el.classN
 
 document.getElementById("btn-gen").onclick = async function(){
   const date = document.getElementById("inp-date").value;
-  const slot = document.getElementById("inp-slot").value;
   const role = document.getElementById("inp-role").value;
   if(!date){ setError("Please select a date."); return; }
 
@@ -199,26 +189,24 @@ document.getElementById("btn-gen").onclick = async function(){
 
   try {
     setStatus("Fetching data from Zoho CRM...");
-    const res = await fetch(`/api/report?date=${date}&slot=${slot}&role=${encodeURIComponent(role)}`);
+    const res = await fetch(`/api/report?date=${date}&slot=7pm&role=${encodeURIComponent(role)}`);
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || "Server error");
 
-    const slotObj = SLOTS[slot];
-    const f = slotObj.fraction;
-    const t = { calls: TARGETS.calls*f, minutes: TARGETS.minutes*f, leads: TARGETS.leads*f, discoveries: TARGETS.discoveries*f, presBooked: TARGETS.presBooked*f, presCompleted: TARGETS.presCompleted*f };
+    const t = { ...TARGETS };
 
     const builders = data.builders.map(b => { const s=score(b,t); return {...b, composite:s, zone:zone(s)}; });
     builders.sort((a,b) => b.composite - a.composite);
 
     // Meta
     const dl = new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"}).toUpperCase();
-    document.getElementById("meta-left").textContent = `${dl}  ·  ${slotObj.display}`;
-    document.getElementById("meta-right").textContent = `Targets at ${Math.round(f*100)}% of day  ·  ${builders.length} ${role}s`;
+    document.getElementById("meta-left").textContent = `${dl}  ·  ${DISPLAY}`;
+    document.getElementById("meta-right").textContent = `${builders.length} ${role}s`;
 
     // Totals
     const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
     builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
-    const tgt = n => (builders.length * n * f).toFixed(1);
+    const tgt = n => (builders.length * n).toFixed(1);
     document.getElementById("totals-grid").innerHTML = [
       ["calls","Calls",tgt(TARGETS.calls)],
       ["minutes","Minutes",tgt(TARGETS.minutes)],
@@ -229,6 +217,7 @@ document.getElementById("btn-gen").onclick = async function(){
     ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
     const CARD_LABELS = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
+    const ON_LEAVE_BADGE = `<div class="card-badge on-leave-badge">🏖 On Leave</div>`;
 
     // Tiles
     document.getElementById("tiles").innerHTML = builders.map(b => `
@@ -237,7 +226,7 @@ document.getElementById("btn-gen").onclick = async function(){
           <div>
             <div class="tile-name">${b.name}</div>
             ${b.teamLead ? `<div class="tile-tl">${b.teamLead}</div>` : ""}
-            <div class="card-badge">${CARD_LABELS[b.zone]}</div>
+            ${b.calls === 0 ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[b.zone]}</div>`}
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:8px">
             <div class="tile-score">${b.composite}%${b.zone==="gold"?'<span class="tile-star">★</span>':''}</div>
