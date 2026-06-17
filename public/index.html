@@ -72,6 +72,12 @@
   .zone-orange { background: #fdecea; border-color: #C44838; color: #7a1a0e; }
   .zone-red    { background: #fce4e4; border-color: #aa1515; color: #5c0000; }
 
+  .card-badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 20px; border: 1.5px solid currentColor;
+    margin-top: 3px; letter-spacing: 0.3px; opacity: 0.85;
+  }
+
   .bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
   .legend span { display: flex; align-items: center; gap: 5px; }
@@ -222,6 +228,8 @@ document.getElementById("btn-gen").onclick = async function(){
       ["presCompleted","Pres. Completed",tgt(TARGETS.presCompleted)]
     ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
+    const CARD_LABELS = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
+
     // Tiles
     document.getElementById("tiles").innerHTML = builders.map(b => `
       <div class="tile zone-${b.zone}">
@@ -229,6 +237,7 @@ document.getElementById("btn-gen").onclick = async function(){
           <div>
             <div class="tile-name">${b.name}</div>
             ${b.teamLead ? `<div class="tile-tl">${b.teamLead}</div>` : ""}
+            <div class="card-badge">${CARD_LABELS[b.zone]}</div>
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:8px">
             <div class="tile-score">${b.composite}%${b.zone==="gold"?'<span class="tile-star">★</span>':''}</div>

@@ -77,7 +77,7 @@ export default async function handler(req, res) {
   async function fetchByCriteria(token, module, fields, criteria) {
     let all = [], page = 1;
     while (true) {
-      const url = `${API_DOMAIN}/crm/v2/${module}?fields=${fields}&criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`;
+      const url = `${API_DOMAIN}/crm/v2/${module}?fields=${fields}&criteria=${criteria}&per_page=200&page=${page}`;
       const data = await zohoGet(token, url);
       if (!data?.data?.length) break;
       all = all.concat(data.data);
