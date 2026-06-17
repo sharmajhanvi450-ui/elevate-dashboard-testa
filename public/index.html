@@ -70,6 +70,12 @@
   .legend span { display: flex; align-items: center; gap: 5px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
+  .tile-call-breakdown { display: flex; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.07); font-size: 10px; }
+  .total-breakdown { margin-top: 4px; font-size: 10px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .bd-in   { color: #5baaff; }
+  .bd-out  { color: #f5a623; }
+  .bd-miss { color: #e06060; }
+
   .totals { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 1.5rem; }
   .totals-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
   .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
@@ -195,8 +201,8 @@ document.getElementById("btn-gen").onclick = async function(){
     document.getElementById("meta-right").textContent = `Targets at ${Math.round(f*100)}% of day  ·  ${builders.length} ${role}s`;
 
     // Totals
-    const totals = { calls:0, minutes:0, leads:0, discoveries:0, presentations:0 };
-    builders.forEach(b => { totals.calls+=b.calls; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presentations+=b.presentations; });
+    const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presentations:0 };
+    builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presentations+=b.presentations; });
     const tgt = n => (builders.length * n * f).toFixed(1);
     document.getElementById("totals-grid").innerHTML = [
       ["calls","Calls",tgt(TARGETS.calls)],
@@ -204,7 +210,7 @@ document.getElementById("btn-gen").onclick = async function(){
       ["leads","Q. Leads",tgt(TARGETS.leads)],
       ["discoveries","Discoveries",tgt(TARGETS.discoveries)],
       ["presentations","Presentations",tgt(TARGETS.presentations)]
-    ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div></div>`).join("");
+    ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
     // Tiles
     document.getElementById("tiles").innerHTML = builders.map(b => `
@@ -220,6 +226,11 @@ document.getElementById("btn-gen").onclick = async function(){
         </div>
         <div class="tile-kpis">
           ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres",b.presentations]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
+        </div>
+        <div class="tile-call-breakdown">
+          <span class="bd-in">↙${b.inbound} in</span>
+          <span class="bd-out">↗${b.outbound} out</span>
+          <span class="bd-miss">✕${b.missed} miss</span>
         </div>
       </div>`).join("");
 

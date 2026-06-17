@@ -82,12 +82,12 @@ export default async function handler(req, res) {
 
     const map = {};
     users.forEach(u => {
-      map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, minutes: 0, leads: 0, discoveries: 0, presentations: 0 };
+      map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, leads: 0, discoveries: 0, presentations: 0 };
     });
 
     // Fetch all data in parallel
     const [allCalls, allLeads, allDeals] = await Promise.all([
-      fetchModuleAll(token, "Calls", "Owner,Call_Duration_in_seconds,Call_Start_Time"),
+      fetchModuleAll(token, "Calls", "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
       fetchModuleAll(token, "Leads", "Owner,Qualified_Lead_Date,Discovery_Completed_Date,Team_Lead"),
       fetchModuleAll(token, "Deals", "Owner,Builder,Qualified_Lead_Date,Discovery_Completed_Date,Presentation_Booked_Date,Team_Lead"),
     ]);
@@ -97,7 +97,13 @@ export default async function handler(req, res) {
       .filter(c => parseZohoDate(c.Call_Start_Time) === date)
       .forEach(c => {
         const id = c.Owner?.id;
-        if (map[id]) { map[id].calls += 1; map[id].minutes += (parseFloat(c.Call_Duration_in_seconds || 0) / 60); }
+        if (map[id]) {
+          map[id].calls += 1;
+          map[id].minutes += (parseFloat(c.Call_Duration_in_seconds || 0) / 60);
+          if (c.Call_Status === "Missed") map[id].missed += 1;
+          else if (c.Call_Type === "Inbound") map[id].inbound += 1;
+          else map[id].outbound += 1;
+        }
       });
 
     // Filter leads by Qualified_Lead_Date
