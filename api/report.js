@@ -87,7 +87,7 @@ export default async function handler(req, res) {
 
     // Fetch all data in parallel
     const [allCalls, allLeads, allDeals] = await Promise.all([
-      fetchModuleAll(token, "Calls", "Owner,Duration_in_minutes,Call_Start_Time"),
+      fetchModuleAll(token, "Calls", "Owner,Call_Duration_in_seconds,Call_Start_Time"),
       fetchModuleAll(token, "Leads", "Owner,Qualified_Lead_Date,Discovery_Completed_Date,Team_Lead"),
       fetchModuleAll(token, "Deals", "Owner,Builder,Qualified_Lead_Date,Discovery_Completed_Date,Presentation_Booked_Date,Team_Lead"),
     ]);
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
       .filter(c => parseZohoDate(c.Call_Start_Time) === date)
       .forEach(c => {
         const id = c.Owner?.id;
-        if (map[id]) { map[id].calls += 1; map[id].minutes += parseFloat(c.Duration_in_minutes || 0); }
+        if (map[id]) { map[id].calls += 1; map[id].minutes += (parseFloat(c.Call_Duration_in_seconds || 0) / 60); }
       });
 
     // Filter leads by Qualified_Lead_Date
