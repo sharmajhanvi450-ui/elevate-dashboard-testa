@@ -72,12 +72,12 @@ export default async function handler(req, res) {
     return all;
   }
 
-  // Fetch records filtered by a date criteria — used for Leads and Deals
-  // where Zoho supports (field:equals:YYYY-MM-DD) on plain date fields.
+  // Fetch records filtered by a date criteria using the /search endpoint,
+  // which correctly applies (field:equals:YYYY-MM-DD) filters.
   async function fetchByCriteria(token, module, fields, criteria) {
     let all = [], page = 1;
     while (true) {
-      const url = `${API_DOMAIN}/crm/v2/${module}?fields=${fields}&criteria=${criteria}&per_page=200&page=${page}`;
+      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${criteria}&per_page=200&page=${page}`;
       const data = await zohoGet(token, url);
       if (!data?.data?.length) break;
       all = all.concat(data.data);
