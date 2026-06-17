@@ -31,33 +31,34 @@ export default async function handler(req, res) {
     return r.json();
   }
 
-  // Search API supports proper date filtering
-  async function searchByDate(token, module, dateField, date) {
+  // Fetch all records from a module with NO date filter, then filter in JS by date string match
+  async function fetchModuleAll(token, module, fields) {
     let all = [], page = 1;
     while (true) {
-      // Use between for date range - start and end of day
-      const url = `${API_DOMAIN}/crm/v2/${module}/search?criteria=(${dateField}:between:${date},${date})&fields=Owner,Builder,${dateField},Team_Lead&per_page=200&page=${page}`;
+      const url = `${API_DOMAIN}/crm/v2/${module}?fields=${fields}&per_page=200&page=${page}&sort_by=Modified_Time&sort_order=desc`;
       const data = await zohoGet(token, url);
       if (!data?.data?.length) break;
       all = all.concat(data.data);
       if (!data.info?.more_records) break;
+      // Stop after 10 pages (2000 records) to avoid timeout
+      if (page >= 10) break;
       page++;
     }
     return all;
   }
 
-  async function searchCalls(token, date) {
-    let all = [], page = 1;
-    while (true) {
-      // For calls use between with full datetime in EST
-      const url = `${API_DOMAIN}/crm/v2/Calls/search?criteria=(Call_Start_Time:between:${date}T00:00:00-05:00,${date}T23:59:59-05:00)&fields=Owner,Duration_in_minutes,Call_Start_Time&per_page=200&page=${page}`;
-      const data = await zohoGet(token, url);
-      if (!data?.data?.length) break;
-      all = all.concat(data.data);
-      if (!data.info?.more_records) break;
-      page++;
-    }
-    return all;
+  // Parse Zoho date "June 02, 2026" or "Jun 16, 2026 05:28 PM" → "YYYY-MM-DD"
+  function parseZohoDate(val) {
+    if (!val) return null;
+    try {
+      const d = new Date(val);
+      if (isNaN(d)) return null;
+      // Use EST offset: getTime - 5hrs to get EST date
+      const estOffset = -5 * 60; // EST = UTC-5
+      const utc = d.getTime() + d.getTimezoneOffset() * 60000;
+      const est = new Date(utc + estOffset * 60000);
+      return est.toISOString().split("T")[0]; // YYYY-MM-DD
+    } catch { return null; }
   }
 
   try {
@@ -81,51 +82,60 @@ export default async function handler(req, res) {
       map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, minutes: 0, leads: 0, discoveries: 0, presentations: 0 };
     });
 
-    // Fetch all data in parallel using search API with proper date filter
-    const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPres] = await Promise.all([
-      searchCalls(token, date),
-      searchByDate(token, "Leads", "Qualified_Lead_Date", date),
-      searchByDate(token, "Leads", "Discovery_Completed_Date", date),
-      searchByDate(token, "Deals", "Qualified_Lead_Date", date),
-      searchByDate(token, "Deals", "Discovery_Completed_Date", date),
-      searchByDate(token, "Deals", "Presentation_Booked_Date", date),
+    // Fetch all data in parallel
+    const [allCalls, allLeads, allDeals] = await Promise.all([
+      fetchModuleAll(token, "Calls", "Owner,Duration_in_minutes,Call_Start_Time"),
+      fetchModuleAll(token, "Leads", "Owner,Qualified_Lead_Date,Discovery_Completed_Date,Team_Lead"),
+      fetchModuleAll(token, "Deals", "Owner,Builder,Qualified_Lead_Date,Discovery_Completed_Date,Presentation_Booked_Date,Team_Lead"),
     ]);
 
-    // Calls
-    calls.forEach(c => {
-      const id = c.Owner?.id;
-      if (map[id]) { map[id].calls += 1; map[id].minutes += parseFloat(c.Duration_in_minutes || 0); }
-    });
+    // Filter calls by date (Call_Start_Time is EST datetime like "Jun 16, 2026 05:28 PM")
+    allCalls
+      .filter(c => parseZohoDate(c.Call_Start_Time) === date)
+      .forEach(c => {
+        const id = c.Owner?.id;
+        if (map[id]) { map[id].calls += 1; map[id].minutes += parseFloat(c.Duration_in_minutes || 0); }
+      });
 
-    // Leads - qualified
-    leadsQL.forEach(l => {
-      const id = l.Owner?.id;
-      if (map[id]) { map[id].leads += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; }
-    });
+    // Filter leads by Qualified_Lead_Date
+    allLeads
+      .filter(l => parseZohoDate(l.Qualified_Lead_Date) === date)
+      .forEach(l => {
+        const id = l.Owner?.id;
+        if (map[id]) { map[id].leads += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; }
+      });
 
-    // Leads - discovery
-    leadsDisc.forEach(l => {
-      const id = l.Owner?.id;
-      if (map[id]) { map[id].discoveries += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; }
-    });
+    // Filter leads by Discovery_Completed_Date
+    allLeads
+      .filter(l => parseZohoDate(l.Discovery_Completed_Date) === date)
+      .forEach(l => {
+        const id = l.Owner?.id;
+        if (map[id]) { map[id].discoveries += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; }
+      });
 
-    // Deals - qualified leads (Builder field)
-    dealsQL.forEach(d => {
-      const id = d.Builder?.id;
-      if (id && map[id]) { map[id].leads += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
-    });
+    // Filter deals by Qualified_Lead_Date (Builder field)
+    allDeals
+      .filter(d => parseZohoDate(d.Qualified_Lead_Date) === date)
+      .forEach(d => {
+        const id = d.Builder?.id;
+        if (id && map[id]) { map[id].leads += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
+      });
 
-    // Deals - discovery (Builder field)
-    dealsDisc.forEach(d => {
-      const id = d.Builder?.id;
-      if (id && map[id]) { map[id].discoveries += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
-    });
+    // Filter deals by Discovery_Completed_Date (Builder field)
+    allDeals
+      .filter(d => parseZohoDate(d.Discovery_Completed_Date) === date)
+      .forEach(d => {
+        const id = d.Builder?.id;
+        if (id && map[id]) { map[id].discoveries += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
+      });
 
-    // Deals - presentations booked (Builder field)
-    dealsPres.forEach(d => {
-      const id = d.Builder?.id;
-      if (id && map[id]) { map[id].presentations += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
-    });
+    // Filter deals by Presentation_Booked_Date (Builder field)
+    allDeals
+      .filter(d => parseZohoDate(d.Presentation_Booked_Date) === date)
+      .forEach(d => {
+        const id = d.Builder?.id;
+        if (id && map[id]) { map[id].presentations += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
+      });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     return res.status(200).json({ builders, date, slot, role });
