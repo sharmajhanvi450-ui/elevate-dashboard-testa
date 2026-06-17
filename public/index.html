@@ -55,7 +55,7 @@
   .tile-tl { font-size: 11px; opacity: 0.6; margin-top: 2px; }
   .tile-score { font-size: 22px; font-weight: 700; text-align: right; flex-shrink: 0; margin-left: 8px; }
   .tile-star { font-size: 14px; margin-left: 2px; }
-  .tile-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; font-size: 11px; text-align: center; }
+  .tile-kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; font-size: 11px; text-align: center; }
   .tile-kpis .val { font-weight: 600; }
   .tile-kpis .lbl { opacity: 0.55; font-size: 10px; }
 
@@ -152,8 +152,8 @@ const SLOTS = {
   "4pm": { fraction: 2/3, display: "10:00 AM – 4:00 PM IST" },
   "7pm": { fraction: 1,   display: "10:00 AM – 7:00 PM IST" }
 };
-const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presentations:2 };
-const WEIGHTS = { calls:0.15, minutes:0.15, leads:0.20, discoveries:0.20, presentations:0.30 };
+const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:1 };
+const WEIGHTS = { calls:0.15, minutes:0.15, leads:0.20, discoveries:0.20, presBooked:0.15, presCompleted:0.15 };
 
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
 function score(b, t){
@@ -163,7 +163,8 @@ function score(b, t){
     cap(b.minutes,t.minutes)*WEIGHTS.minutes +
     cap(b.leads,t.leads)*WEIGHTS.leads +
     cap(b.discoveries,t.discoveries)*WEIGHTS.discoveries +
-    cap(b.presentations,t.presentations)*WEIGHTS.presentations
+    cap(b.presBooked,t.presBooked)*WEIGHTS.presBooked +
+    cap(b.presCompleted,t.presCompleted)*WEIGHTS.presCompleted
   );
 }
 
@@ -190,7 +191,7 @@ document.getElementById("btn-gen").onclick = async function(){
 
     const slotObj = SLOTS[slot];
     const f = slotObj.fraction;
-    const t = { calls: TARGETS.calls*f, minutes: TARGETS.minutes*f, leads: TARGETS.leads*f, discoveries: TARGETS.discoveries*f, presentations: TARGETS.presentations*f };
+    const t = { calls: TARGETS.calls*f, minutes: TARGETS.minutes*f, leads: TARGETS.leads*f, discoveries: TARGETS.discoveries*f, presBooked: TARGETS.presBooked*f, presCompleted: TARGETS.presCompleted*f };
 
     const builders = data.builders.map(b => { const s=score(b,t); return {...b, composite:s, zone:zone(s)}; });
     builders.sort((a,b) => b.composite - a.composite);
@@ -201,15 +202,16 @@ document.getElementById("btn-gen").onclick = async function(){
     document.getElementById("meta-right").textContent = `Targets at ${Math.round(f*100)}% of day  ·  ${builders.length} ${role}s`;
 
     // Totals
-    const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presentations:0 };
-    builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presentations+=b.presentations; });
+    const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
+    builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
     const tgt = n => (builders.length * n * f).toFixed(1);
     document.getElementById("totals-grid").innerHTML = [
       ["calls","Calls",tgt(TARGETS.calls)],
       ["minutes","Minutes",tgt(TARGETS.minutes)],
       ["leads","Q. Leads",tgt(TARGETS.leads)],
       ["discoveries","Discoveries",tgt(TARGETS.discoveries)],
-      ["presentations","Presentations",tgt(TARGETS.presentations)]
+      ["presBooked","Pres. Booked",tgt(TARGETS.presBooked)],
+      ["presCompleted","Pres. Completed",tgt(TARGETS.presCompleted)]
     ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
     // Tiles
@@ -225,7 +227,7 @@ document.getElementById("btn-gen").onclick = async function(){
           </div>
         </div>
         <div class="tile-kpis">
-          ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres",b.presentations]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
+          ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
         </div>
         <div class="tile-call-breakdown">
           <span class="bd-in">↙${b.inbound} in</span>

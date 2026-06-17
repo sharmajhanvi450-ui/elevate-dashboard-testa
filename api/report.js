@@ -82,14 +82,14 @@ export default async function handler(req, res) {
 
     const map = {};
     users.forEach(u => {
-      map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, leads: 0, discoveries: 0, presentations: 0 };
+      map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
     });
 
     // Fetch all data in parallel
     const [allCalls, allLeads, allDeals] = await Promise.all([
       fetchModuleAll(token, "Calls", "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
       fetchModuleAll(token, "Leads", "Owner,Qualified_Lead_Date,Discovery_Completed_Date,Team_Lead"),
-      fetchModuleAll(token, "Deals", "Owner,Builder,Qualified_Lead_Date,Discovery_Completed_Date,Presentation_Booked_Date,Team_Lead"),
+      fetchModuleAll(token, "Deals", "Owner,Builder,Qualified_Lead_Date,Discovery_Completed_Date,Presentation_Booked_Date,Presentation_Completed_Date,Team_Lead"),
     ]);
 
     // Filter calls by date (Call_Start_Time is EST datetime like "Jun 16, 2026 05:28 PM")
@@ -143,7 +143,15 @@ export default async function handler(req, res) {
       .filter(d => parseZohoDate(d.Presentation_Booked_Date) === date)
       .forEach(d => {
         const id = d.Builder?.id;
-        if (id && map[id]) { map[id].presentations += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
+        if (id && map[id]) { map[id].presBooked += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
+      });
+
+    // Filter deals by Presentation_Completed_Date (Builder field)
+    allDeals
+      .filter(d => parseZohoDate(d.Presentation_Completed_Date) === date)
+      .forEach(d => {
+        const id = d.Builder?.id;
+        if (id && map[id]) { map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; }
       });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
