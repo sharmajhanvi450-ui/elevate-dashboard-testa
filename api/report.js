@@ -32,7 +32,6 @@ export default async function handler(req, res) {
     return r.json();
   }
 
-  // Parse Zoho date to "YYYY-MM-DD"
   function parseZohoDate(val) {
     if (!val) return null;
     const isoMatch = val.match(/^(\d{4}-\d{2}-\d{2})T/);
@@ -45,9 +44,6 @@ export default async function handler(req, res) {
     } catch { return null; }
   }
 
-  // Fetch calls for a specific date by sorting by Call_Start_Time DESC,
-  // requesting pages in parallel batches of 5 to avoid sequential timeout.
-  // Stops as soon as any page's oldest record goes before the target date.
   async function fetchCallsForDate(token, date, fields) {
     let all = [];
     const BATCH = 5;
@@ -57,7 +53,6 @@ export default async function handler(req, res) {
         fetch(`${API_DOMAIN}/crm/v2/Calls?fields=${fields}&per_page=200&page=${p}&sort_by=Call_Start_Time&sort_order=desc`,
           { headers: { Authorization: `Zoho-oauthtoken ${token}` } }).then(r => r.json())
       ));
-
       let done = false;
       for (const data of results) {
         if (!data?.data?.length) { done = true; break; }
@@ -73,8 +68,6 @@ export default async function handler(req, res) {
     return all;
   }
 
-  // Fetch records filtered by a date criteria using the /search endpoint,
-  // which correctly applies (field:equals:YYYY-MM-DD) filters.
   async function fetchByCriteria(token, module, fields, criteria) {
     let all = [], page = 1;
     while (true) {
@@ -94,7 +87,6 @@ export default async function handler(req, res) {
 
     const token = await getAccessToken();
 
-    // Fetch users
     const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=ActiveUsers&per_page=200`);
     const allUsers = ud?.users || [];
     const users = allUsers.filter(u => (u.role?.name || "").toLowerCase().includes(role.toLowerCase()));
@@ -104,17 +96,75 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: `No users found matching "${role}".`, available_roles: roleNames });
     }
 
+    const isCloser = role.toLowerCase().includes("closer");
+
+    // ── CLOSER REPORT ────────────────────────────────────────────────────────
+    if (isCloser) {
+      const map = {};
+      users.forEach(u => {
+        map[u.id] = { name: u.full_name, id: u.id, teamLead: "",
+          calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0,
+          presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 };
+      });
+
+      const [calls, presHeld, closedDeals, upfrontDeals] = await Promise.all([
+        fetchCallsForDate(token, date, "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
+        fetchByCriteria(token, "Deals", "Owner,Team_Lead", `(Presentation_Completed_Date:equals:${date})`),
+        fetchByCriteria(token, "Deals", "Owner,Deal_Closed_Date,Future_Booked_Upfront,Team_Lead", `(Deal_Closed_Date:equals:${date})`),
+        fetchByCriteria(token, "Deals", "Owner,Upfront_Amount,Upfront_Amount_Received_Date,Team_Lead", `(Upfront_Amount_Received_Date:equals:${date})`),
+      ]);
+
+      calls.forEach(c => {
+        const id = c.Owner?.id;
+        if (!map[id]) return;
+        if (c.Call_Status === "Missed") { map[id].missed += 1; return; }
+        if (c.Call_Type === "Inbound")  { map[id].inbound += 1; return; }
+        map[id].calls += 1;
+        map[id].outbound += 1;
+        map[id].minutes += (parseFloat(c.Call_Duration_in_seconds || 0) / 60);
+      });
+
+      presHeld.forEach(d => {
+        const id = d.Owner?.id;
+        if (!map[id]) return;
+        map[id].presentations += 1;
+        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
+      });
+
+      closedDeals.forEach(d => {
+        const id = d.Owner?.id;
+        if (!map[id]) return;
+        map[id].dealsClosed += 1;
+        map[id].futureUpfront += parseFloat(d.Future_Booked_Upfront || 0);
+        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
+      });
+
+      upfrontDeals.forEach(d => {
+        const id = d.Owner?.id;
+        if (!map[id]) return;
+        map[id].newUpfront += parseFloat(d.Upfront_Amount || 0);
+        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
+      });
+
+      const closers = Object.values(map).map(b => ({
+        ...b,
+        minutes: Math.round(b.minutes),
+        newUpfront: Math.round(b.newUpfront),
+        futureUpfront: Math.round(b.futureUpfront),
+        revenue: Math.round(b.newUpfront + b.futureUpfront),
+      }));
+      return res.status(200).json({ closers, date, slot, role });
+    }
+
+    // ── BUILDER REPORT ───────────────────────────────────────────────────────
     const map = {};
     users.forEach(u => {
-      map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
+      map[u.id] = { name: u.full_name, id: u.id, teamLead: "",
+        calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0,
+        leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
     });
 
-    // Fetch all data in parallel using targeted queries
-    const [
-      calls,
-      leadsQL, leadsDisc,
-      dealsQL, dealsDisc, dealsPB, dealsPC,
-    ] = await Promise.all([
+    const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
       fetchCallsForDate(token, date, "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
       fetchByCriteria(token, "Leads", "Owner,Team_Lead", `(Qualified_Lead_Date:equals:${date})`),
       fetchByCriteria(token, "Leads", "Owner,Team_Lead", `(Discovery_Completed_Date:equals:${date})`),
@@ -124,65 +174,22 @@ export default async function handler(req, res) {
       fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", `(Presentation_Completed_Date:equals:${date})`),
     ]);
 
-    // Aggregate calls — track all for breakdown, but only outbound count toward score
     calls.forEach(c => {
       const id = c.Owner?.id;
       if (!map[id]) return;
       if (c.Call_Status === "Missed") { map[id].missed += 1; return; }
       if (c.Call_Type === "Inbound")  { map[id].inbound += 1; return; }
-      // Outbound only
       map[id].calls += 1;
       map[id].outbound += 1;
       map[id].minutes += (parseFloat(c.Call_Duration_in_seconds || 0) / 60);
     });
 
-    // Aggregate leads — Qualified_Lead_Date (Owner)
-    leadsQL.forEach(l => {
-      const id = l.Owner?.id;
-      if (!map[id]) return;
-      map[id].leads += 1;
-      if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead;
-    });
-
-    // Aggregate leads — Discovery_Completed_Date (Owner)
-    leadsDisc.forEach(l => {
-      const id = l.Owner?.id;
-      if (!map[id]) return;
-      map[id].discoveries += 1;
-      if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead;
-    });
-
-    // Aggregate deals — Qualified_Lead_Date (Builder)
-    dealsQL.forEach(d => {
-      const id = d.Builder?.id;
-      if (!id || !map[id]) return;
-      map[id].leads += 1;
-      if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
-    });
-
-    // Aggregate deals — Discovery_Completed_Date (Builder)
-    dealsDisc.forEach(d => {
-      const id = d.Builder?.id;
-      if (!id || !map[id]) return;
-      map[id].discoveries += 1;
-      if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
-    });
-
-    // Aggregate deals — Presentation_Booked_Date (Builder)
-    dealsPB.forEach(d => {
-      const id = d.Builder?.id;
-      if (!id || !map[id]) return;
-      map[id].presBooked += 1;
-      if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
-    });
-
-    // Aggregate deals — Presentation_Completed_Date (Builder)
-    dealsPC.forEach(d => {
-      const id = d.Builder?.id;
-      if (!id || !map[id]) return;
-      map[id].presCompleted += 1;
-      if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
-    });
+    leadsQL.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].leads += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; });
+    leadsDisc.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; });
+    dealsQL.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].leads += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    dealsDisc.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    dealsPB.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presBooked += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    dealsPC.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     return res.status(200).json({ builders, date, slot, role });

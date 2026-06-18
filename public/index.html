@@ -182,19 +182,34 @@
 
 <script>
 const DISPLAY = "9:00 AM – 8:00 PM EST";
+
 const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
 const WEIGHTS = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
 
+const TARGETS_CLOSER = { calls:60, minutes:90, presentations:2, dealsClosed:1 };
+const WEIGHTS_CLOSER = { calls:0.10, minutes:0.10, presentations:0.30, dealsClosed:0.50 };
+
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
-function score(b, t){
+
+function scoreBuilder(b){
   const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
   return Math.round(
-    cap(b.calls,t.calls)*WEIGHTS.calls +
-    cap(b.minutes,t.minutes)*WEIGHTS.minutes +
-    cap(b.leads,t.leads)*WEIGHTS.leads +
-    cap(b.discoveries,t.discoveries)*WEIGHTS.discoveries +
-    cap(b.presBooked,t.presBooked)*WEIGHTS.presBooked +
-    cap(b.presCompleted,t.presCompleted)*WEIGHTS.presCompleted
+    cap(b.calls,TARGETS.calls)*WEIGHTS.calls +
+    cap(b.minutes,TARGETS.minutes)*WEIGHTS.minutes +
+    cap(b.leads,TARGETS.leads)*WEIGHTS.leads +
+    cap(b.discoveries,TARGETS.discoveries)*WEIGHTS.discoveries +
+    cap(b.presBooked,TARGETS.presBooked)*WEIGHTS.presBooked +
+    cap(b.presCompleted,TARGETS.presCompleted)*WEIGHTS.presCompleted
+  );
+}
+
+function scoreCloser(c){
+  const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
+  return Math.round(
+    cap(c.calls,TARGETS_CLOSER.calls)*WEIGHTS_CLOSER.calls +
+    cap(c.minutes,TARGETS_CLOSER.minutes)*WEIGHTS_CLOSER.minutes +
+    cap(c.presentations,TARGETS_CLOSER.presentations)*WEIGHTS_CLOSER.presentations +
+    cap(c.dealsClosed,TARGETS_CLOSER.dealsClosed)*WEIGHTS_CLOSER.dealsClosed
   );
 }
 
@@ -218,61 +233,111 @@ document.getElementById("btn-gen").onclick = async function(){
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || "Server error");
 
-    const t = { ...TARGETS };
-
-    const builders = data.builders.map(b => { const s=score(b,t); return {...b, composite:s, zone:zone(s)}; });
-    builders.sort((a,b) => b.composite - a.composite);
-
-    // Meta
+    const isCloser = role.toLowerCase().includes("closer");
     const dl = new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"}).toUpperCase();
-    document.getElementById("meta-left").textContent = `${dl}  ·  ${DISPLAY}`;
-    document.getElementById("meta-right").textContent = `${builders.length} ${role}s`;
-
-    // Totals
-    const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
-    builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
-    const tgt = n => (builders.length * n).toFixed(1);
-    document.getElementById("totals-grid").innerHTML = [
-      ["calls","Calls",tgt(TARGETS.calls)],
-      ["minutes","Minutes",tgt(TARGETS.minutes)],
-      ["leads","Q. Leads",tgt(TARGETS.leads)],
-      ["discoveries","Discoveries",tgt(TARGETS.discoveries)],
-      ["presBooked","Pres. Booked",tgt(TARGETS.presBooked)],
-      ["presCompleted","Pres. Completed",tgt(TARGETS.presCompleted)]
-    ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
-
     const CARD_LABELS = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
     const ON_LEAVE_BADGE = `<div class="card-badge on-leave-badge">🏖 On Leave</div>`;
 
-    // Tiles
-    document.getElementById("tiles").innerHTML = builders.map(b => `
-      <div class="tile zone-${b.zone}">
-        <div class="tile-header">
-          <div>
-            <div class="tile-name">${b.name}</div>
-            ${b.teamLead ? `<div class="tile-tl">${b.teamLead}</div>` : ""}
-            ${b.calls === 0 ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[b.zone]}</div>`}
+    document.getElementById("meta-left").textContent = `${dl}  ·  ${DISPLAY}`;
+
+    if (isCloser) {
+      const closers = data.closers.map(c => { const s=scoreCloser(c); return {...c, composite:s, zone:zone(s)}; });
+      closers.sort((a,b) => b.composite - a.composite);
+      document.getElementById("meta-right").textContent = `${closers.length} Closer${closers.length!==1?"s":""}`;
+
+      const tot = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, presentations:0, dealsClosed:0, newUpfront:0, futureUpfront:0, revenue:0 };
+      closers.forEach(c => { tot.calls+=c.calls; tot.inbound+=c.inbound; tot.outbound+=c.outbound; tot.missed+=c.missed; tot.minutes+=c.minutes; tot.presentations+=c.presentations; tot.dealsClosed+=c.dealsClosed; tot.newUpfront+=c.newUpfront; tot.futureUpfront+=c.futureUpfront; tot.revenue+=c.revenue; });
+      const n = closers.length;
+      document.getElementById("totals-grid").innerHTML = [
+        ["calls","Calls",(n*TARGETS_CLOSER.calls).toFixed(0)],
+        ["minutes","Minutes",(n*TARGETS_CLOSER.minutes).toFixed(0)],
+        ["presentations","Pres. Held",(n*TARGETS_CLOSER.presentations).toFixed(0)],
+        ["dealsClosed","Deals Closed",(n*TARGETS_CLOSER.dealsClosed).toFixed(0)],
+        ["newUpfront","New Upfront","—"],
+        ["futureUpfront","Future Upfront","—"],
+        ["revenue","Revenue (Total)","—"],
+      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${k==="newUpfront"||k==="futureUpfront"||k==="revenue"?"$"+tot[k].toLocaleString():tot[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${tot.inbound} in</span> <span class="bd-out">↗${tot.outbound} out</span> <span class="bd-miss">✕${tot.missed} miss</span></div>`:""}</div>`).join("");
+
+      document.getElementById("tiles").innerHTML = closers.map(c => `
+        <div class="tile zone-${c.zone}">
+          <div class="tile-header">
+            <div>
+              <div class="tile-name">${c.name}</div>
+              ${c.teamLead ? `<div class="tile-tl">${c.teamLead}</div>` : ""}
+              ${c.calls === 0 ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[c.zone]}</div>`}
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:8px">
+              <div class="tile-score">${c.composite}%${c.zone==="gold"?'<span class="tile-star">★</span>':''}</div>
+            </div>
           </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:8px">
-            <div class="tile-score">${b.composite}%${b.zone==="gold"?'<span class="tile-star">★</span>':''}</div>
+          <div class="tile-kpis" style="grid-template-columns:repeat(4,1fr)">
+            ${[["calls",c.calls],["mins",c.minutes],["pres",c.presentations],["deals",c.dealsClosed]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
           </div>
-        </div>
-        <div class="tile-kpis">
-          ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
-        </div>
-        <div class="tile-call-breakdown">
-          <span class="bd-in">↙${b.inbound} in</span>
-          <span class="bd-out">↗${b.outbound} out</span>
-          <span class="bd-miss">✕${b.missed} miss</span>
-        </div>
-        ${b.calls === 0 ? `
-        <div class="on-leave-overlay">
-          <div class="on-leave-stamp">
-            <div class="stamp-icon">📅</div>
-            <div class="stamp-text">ON LEAVE</div>
+          <div class="tile-call-breakdown">
+            <span class="bd-in">↙${c.inbound} in</span>
+            <span class="bd-out">↗${c.outbound} out</span>
+            <span class="bd-miss">✕${c.missed} miss</span>
           </div>
-        </div>` : ""}
-      </div>`).join("");
+          <div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.08);font-size:12px;display:flex;justify-content:space-between;gap:6px">
+            <span>New: <strong>$${c.newUpfront.toLocaleString()}</strong></span>
+            <span>Future: <strong>$${c.futureUpfront.toLocaleString()}</strong></span>
+            <span>Rev: <strong>$${c.revenue.toLocaleString()}</strong></span>
+          </div>
+          ${c.calls === 0 ? `
+          <div class="on-leave-overlay">
+            <div class="on-leave-stamp">
+              <div class="stamp-icon">📅</div>
+              <div class="stamp-text">ON LEAVE</div>
+            </div>
+          </div>` : ""}
+        </div>`).join("");
+
+    } else {
+      const builders = data.builders.map(b => { const s=scoreBuilder(b); return {...b, composite:s, zone:zone(s)}; });
+      builders.sort((a,b) => b.composite - a.composite);
+      document.getElementById("meta-right").textContent = `${builders.length} Builder${builders.length!==1?"s":""}`;
+
+      const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
+      builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
+      const tgt = n => (builders.length * n).toFixed(1);
+      document.getElementById("totals-grid").innerHTML = [
+        ["calls","Calls",tgt(TARGETS.calls)],
+        ["minutes","Minutes",tgt(TARGETS.minutes)],
+        ["leads","Q. Leads",tgt(TARGETS.leads)],
+        ["discoveries","Discoveries",tgt(TARGETS.discoveries)],
+        ["presBooked","Pres. Booked",tgt(TARGETS.presBooked)],
+        ["presCompleted","Pres. Completed",tgt(TARGETS.presCompleted)]
+      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
+
+      document.getElementById("tiles").innerHTML = builders.map(b => `
+        <div class="tile zone-${b.zone}">
+          <div class="tile-header">
+            <div>
+              <div class="tile-name">${b.name}</div>
+              ${b.teamLead ? `<div class="tile-tl">${b.teamLead}</div>` : ""}
+              ${b.calls === 0 ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[b.zone]}</div>`}
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:8px">
+              <div class="tile-score">${b.composite}%${b.zone==="gold"?'<span class="tile-star">★</span>':''}</div>
+            </div>
+          </div>
+          <div class="tile-kpis">
+            ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
+          </div>
+          <div class="tile-call-breakdown">
+            <span class="bd-in">↙${b.inbound} in</span>
+            <span class="bd-out">↗${b.outbound} out</span>
+            <span class="bd-miss">✕${b.missed} miss</span>
+          </div>
+          ${b.calls === 0 ? `
+          <div class="on-leave-overlay">
+            <div class="on-leave-stamp">
+              <div class="stamp-icon">📅</div>
+              <div class="stamp-text">ON LEAVE</div>
+            </div>
+          </div>` : ""}
+        </div>`).join("");
+    }
 
     document.getElementById("results").style.display = "block";
     setStatus("");
