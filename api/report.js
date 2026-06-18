@@ -134,7 +134,6 @@ export default async function handler(req, res) {
       closedDeals.forEach(d => {
         const id = d.Owner?.id;
         if (!map[id]) return;
-        map[id].dealsClosed += 1;
         map[id].futureUpfront += parseFloat(d.Future_Booked_Upfront || 0);
         if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
       });
@@ -142,6 +141,7 @@ export default async function handler(req, res) {
       upfrontDeals.forEach(d => {
         const id = d.Owner?.id;
         if (!map[id]) return;
+        map[id].dealsClosed += 1;
         map[id].newUpfront += parseFloat(d.Upfront_Amount || 0);
         if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
       });
