@@ -44,7 +44,8 @@ export default async function handler(req, res) {
     } catch { return null; }
   }
 
-  async function fetchCallsForDate(token, date, fields) {
+  // Fetch all calls where Call_Start_Time falls within [startDate, endDate]
+  async function fetchCallsForRange(token, startDate, endDate, fields) {
     let all = [];
     const BATCH = 5;
     for (let start = 1; start <= 200; start += BATCH) {
@@ -57,10 +58,11 @@ export default async function handler(req, res) {
       for (const data of results) {
         if (!data?.data?.length) { done = true; break; }
         for (const record of data.data) {
-          if (parseZohoDate(record.Call_Start_Time) === date) all.push(record);
+          const d = parseZohoDate(record.Call_Start_Time);
+          if (d && d >= startDate && d <= endDate) all.push(record);
         }
         const oldestDate = parseZohoDate(data.data.at(-1)?.Call_Start_Time);
-        if (oldestDate && oldestDate < date) { done = true; break; }
+        if (oldestDate && oldestDate < startDate) { done = true; break; }
         if (!data.info?.more_records) { done = true; break; }
       }
       if (done) break;
@@ -68,7 +70,11 @@ export default async function handler(req, res) {
     return all;
   }
 
-  async function fetchByCriteria(token, module, fields, criteria) {
+  // Uses /search with between for date ranges (single date: startDate === endDate uses equals)
+  async function fetchByCriteria(token, module, fields, startDate, endDate, dateField) {
+    const criteria = startDate === endDate
+      ? `(${dateField}:equals:${startDate})`
+      : `(${dateField}:between:${startDate},${endDate})`;
     let all = [], page = 1;
     while (true) {
       const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${criteria}&per_page=200&page=${page}`;
@@ -82,8 +88,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { date, slot, role } = req.method === "POST" ? req.body : req.query;
-    if (!date || !slot || !role) return res.status(400).json({ error: "Missing date, slot or role" });
+    const q = req.method === "POST" ? req.body : req.query;
+    const { slot, role } = q;
+    // Support both single `date` and `startDate`/`endDate`
+    const startDate = q.startDate || q.date;
+    const endDate   = q.endDate   || q.date;
+
+    if (!startDate || !endDate || !slot || !role) {
+      return res.status(400).json({ error: "Missing startDate, endDate, slot or role" });
+    }
+    if (startDate > endDate) {
+      return res.status(400).json({ error: "startDate must be on or before endDate" });
+    }
 
     const token = await getAccessToken();
 
@@ -107,11 +123,12 @@ export default async function handler(req, res) {
           presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 };
       });
 
+      const CALL_FIELDS = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
       const [calls, presHeld, closedDeals, upfrontDeals] = await Promise.all([
-        fetchCallsForDate(token, date, "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
-        fetchByCriteria(token, "Deals", "Owner,Team_Lead", `(Presentation_Completed_Date:equals:${date})`),
-        fetchByCriteria(token, "Deals", "Owner,Deal_Closed_Date,Future_Booked_Upfront,Team_Lead", `(Deal_Closed_Date:equals:${date})`),
-        fetchByCriteria(token, "Deals", "Owner,Upfront_Amount,Upfront_Amount_Received_Date,Team_Lead", `(Upfront_Amount_Received_Date:equals:${date})`),
+        fetchCallsForRange(token, startDate, endDate, CALL_FIELDS),
+        fetchByCriteria(token, "Deals", "Owner,Team_Lead", startDate, endDate, "Presentation_Completed_Date"),
+        fetchByCriteria(token, "Deals", "Owner,Future_Booked_Upfront,Team_Lead", startDate, endDate, "Deal_Closed_Date"),
+        fetchByCriteria(token, "Deals", "Owner,Upfront_Amount,Team_Lead", startDate, endDate, "Upfront_Amount_Received_Date"),
       ]);
 
       calls.forEach(c => {
@@ -153,7 +170,7 @@ export default async function handler(req, res) {
         futureUpfront: Math.round(b.futureUpfront),
         revenue: Math.round(b.newUpfront + b.futureUpfront),
       }));
-      return res.status(200).json({ closers, date, slot, role });
+      return res.status(200).json({ closers, startDate, endDate, slot, role });
     }
 
     // ── BUILDER REPORT ───────────────────────────────────────────────────────
@@ -164,14 +181,15 @@ export default async function handler(req, res) {
         leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
     });
 
+    const CALL_FIELDS = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
     const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
-      fetchCallsForDate(token, date, "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status"),
-      fetchByCriteria(token, "Leads", "Owner,Team_Lead", `(Qualified_Lead_Date:equals:${date})`),
-      fetchByCriteria(token, "Leads", "Owner,Team_Lead", `(Discovery_Completed_Date:equals:${date})`),
-      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", `(Qualified_Lead_Date:equals:${date})`),
-      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", `(Discovery_Completed_Date:equals:${date})`),
-      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", `(Presentation_Booked_Date:equals:${date})`),
-      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", `(Presentation_Completed_Date:equals:${date})`),
+      fetchCallsForRange(token, startDate, endDate, CALL_FIELDS),
+      fetchByCriteria(token, "Leads", "Owner,Team_Lead", startDate, endDate, "Qualified_Lead_Date"),
+      fetchByCriteria(token, "Leads", "Owner,Team_Lead", startDate, endDate, "Discovery_Completed_Date"),
+      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Qualified_Lead_Date"),
+      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Discovery_Completed_Date"),
+      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Presentation_Booked_Date"),
+      fetchByCriteria(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Presentation_Completed_Date"),
     ]);
 
     calls.forEach(c => {
@@ -192,7 +210,7 @@ export default async function handler(req, res) {
     dealsPC.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
-    return res.status(200).json({ builders, date, slot, role });
+    return res.status(200).json({ builders, startDate, endDate, slot, role });
 
   } catch (e) {
     return res.status(500).json({ error: e.message || "Internal server error" });

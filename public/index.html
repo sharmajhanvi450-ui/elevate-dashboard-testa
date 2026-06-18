@@ -137,8 +137,12 @@
 
   <div class="controls">
     <div class="field">
-      <label>Date</label>
-      <input type="date" id="inp-date">
+      <label>Start Date</label>
+      <input type="date" id="inp-start">
+    </div>
+    <div class="field">
+      <label>End Date</label>
+      <input type="date" id="inp-end">
     </div>
     <div class="field">
       <label>Role</label>
@@ -191,37 +195,41 @@ const WEIGHTS_CLOSER = { calls:0.10, minutes:0.10, presentations:0.30, dealsClos
 
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
 
-function scoreBuilder(b){
+function scoreBuilder(b, t){
   const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
   return Math.round(
-    cap(b.calls,TARGETS.calls)*WEIGHTS.calls +
-    cap(b.minutes,TARGETS.minutes)*WEIGHTS.minutes +
-    cap(b.leads,TARGETS.leads)*WEIGHTS.leads +
-    cap(b.discoveries,TARGETS.discoveries)*WEIGHTS.discoveries +
-    cap(b.presBooked,TARGETS.presBooked)*WEIGHTS.presBooked +
-    cap(b.presCompleted,TARGETS.presCompleted)*WEIGHTS.presCompleted
+    cap(b.calls,t.calls)*WEIGHTS.calls +
+    cap(b.minutes,t.minutes)*WEIGHTS.minutes +
+    cap(b.leads,t.leads)*WEIGHTS.leads +
+    cap(b.discoveries,t.discoveries)*WEIGHTS.discoveries +
+    cap(b.presBooked,t.presBooked)*WEIGHTS.presBooked +
+    cap(b.presCompleted,t.presCompleted)*WEIGHTS.presCompleted
   );
 }
 
-function scoreCloser(c){
+function scoreCloser(c, t){
   const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
   return Math.round(
-    cap(c.calls,TARGETS_CLOSER.calls)*WEIGHTS_CLOSER.calls +
-    cap(c.minutes,TARGETS_CLOSER.minutes)*WEIGHTS_CLOSER.minutes +
-    cap(c.presentations,TARGETS_CLOSER.presentations)*WEIGHTS_CLOSER.presentations +
-    cap(c.dealsClosed,TARGETS_CLOSER.dealsClosed)*WEIGHTS_CLOSER.dealsClosed
+    cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
+    cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
+    cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations +
+    cap(c.dealsClosed,t.dealsClosed)*WEIGHTS_CLOSER.dealsClosed
   );
 }
 
-document.getElementById("inp-date").value = new Date().toISOString().split("T")[0];
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("inp-start").value = today;
+document.getElementById("inp-end").value   = today;
 
 function setStatus(msg){ const el=document.getElementById("status"); el.className="status-bar"+(msg?" show":""); document.getElementById("status-text").textContent=msg||""; }
 function setError(msg){ const el=document.getElementById("error-box"); el.className="error-box"+(msg?" show":""); el.textContent=msg||""; }
 
 document.getElementById("btn-gen").onclick = async function(){
-  const date = document.getElementById("inp-date").value;
+  const startDate = document.getElementById("inp-start").value;
+  const endDate   = document.getElementById("inp-end").value;
   const role = document.getElementById("inp-role").value;
-  if(!date){ setError("Please select a date."); return; }
+  if(!startDate || !endDate){ setError("Please select both start and end dates."); return; }
+  if(startDate > endDate){ setError("Start date must be on or before end date."); return; }
 
   const btn = document.getElementById("btn-gen");
   btn.disabled = true; btn.textContent = "Loading...";
@@ -229,19 +237,23 @@ document.getElementById("btn-gen").onclick = async function(){
 
   try {
     setStatus("Fetching data from Zoho CRM...");
-    const res = await fetch(`/api/report?date=${date}&slot=7pm&role=${encodeURIComponent(role)}`);
+    const res = await fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=${encodeURIComponent(role)}`);
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || "Server error");
 
     const isCloser = role.toLowerCase().includes("closer");
-    const dl = new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"}).toUpperCase();
+    const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}).toUpperCase();
+    const dl = startDate === endDate ? fmtDate(startDate) : `${fmtDate(startDate)} – ${fmtDate(endDate)}`;
+    const days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000) + 1;
+    const T = Object.fromEntries(Object.entries(TARGETS).map(([k,v]) => [k, v * days]));
+    const TC = Object.fromEntries(Object.entries(TARGETS_CLOSER).map(([k,v]) => [k, v * days]));
     const CARD_LABELS = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
     const ON_LEAVE_BADGE = `<div class="card-badge on-leave-badge">🏖 On Leave</div>`;
 
     document.getElementById("meta-left").textContent = `${dl}  ·  ${DISPLAY}`;
 
     if (isCloser) {
-      const closers = data.closers.map(c => { const s=scoreCloser(c); return {...c, composite:s, zone:zone(s)}; });
+      const closers = data.closers.map(c => { const s=scoreCloser(c,TC); return {...c, composite:s, zone:zone(s)}; });
       closers.sort((a,b) => b.composite - a.composite);
       document.getElementById("meta-right").textContent = `${closers.length} Closer${closers.length!==1?"s":""}`;
 
@@ -249,10 +261,10 @@ document.getElementById("btn-gen").onclick = async function(){
       closers.forEach(c => { tot.calls+=c.calls; tot.inbound+=c.inbound; tot.outbound+=c.outbound; tot.missed+=c.missed; tot.minutes+=c.minutes; tot.presentations+=c.presentations; tot.dealsClosed+=c.dealsClosed; tot.newUpfront+=c.newUpfront; tot.futureUpfront+=c.futureUpfront; tot.revenue+=c.revenue; });
       const n = closers.length;
       document.getElementById("totals-grid").innerHTML = [
-        ["calls","Calls",(n*TARGETS_CLOSER.calls).toFixed(0)],
-        ["minutes","Minutes",(n*TARGETS_CLOSER.minutes).toFixed(0)],
-        ["presentations","Pres. Held",(n*TARGETS_CLOSER.presentations).toFixed(0)],
-        ["dealsClosed","Deals Closed",(n*TARGETS_CLOSER.dealsClosed).toFixed(0)],
+        ["calls","Calls",(n*TC.calls).toFixed(0)],
+        ["minutes","Minutes",(n*TC.minutes).toFixed(0)],
+        ["presentations","Pres. Held",(n*TC.presentations).toFixed(0)],
+        ["dealsClosed","Deals Closed",(n*TC.dealsClosed).toFixed(0)],
         ["newUpfront","New Upfront","—"],
         ["futureUpfront","Future Upfront","—"],
         ["revenue","Revenue (Total)","—"],
@@ -293,20 +305,20 @@ document.getElementById("btn-gen").onclick = async function(){
         </div>`).join("");
 
     } else {
-      const builders = data.builders.map(b => { const s=scoreBuilder(b); return {...b, composite:s, zone:zone(s)}; });
+      const builders = data.builders.map(b => { const s=scoreBuilder(b,T); return {...b, composite:s, zone:zone(s)}; });
       builders.sort((a,b) => b.composite - a.composite);
       document.getElementById("meta-right").textContent = `${builders.length} Builder${builders.length!==1?"s":""}`;
 
       const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
       builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
-      const tgt = n => (builders.length * n).toFixed(1);
+      const tgt = v => (builders.length * v).toFixed(0);
       document.getElementById("totals-grid").innerHTML = [
-        ["calls","Calls",tgt(TARGETS.calls)],
-        ["minutes","Minutes",tgt(TARGETS.minutes)],
-        ["leads","Q. Leads",tgt(TARGETS.leads)],
-        ["discoveries","Discoveries",tgt(TARGETS.discoveries)],
-        ["presBooked","Pres. Booked",tgt(TARGETS.presBooked)],
-        ["presCompleted","Pres. Completed",tgt(TARGETS.presCompleted)]
+        ["calls","Calls",tgt(T.calls)],
+        ["minutes","Minutes",tgt(T.minutes)],
+        ["leads","Q. Leads",tgt(T.leads)],
+        ["discoveries","Discoveries",tgt(T.discoveries)],
+        ["presBooked","Pres. Booked",tgt(T.presBooked)],
+        ["presCompleted","Pres. Completed",tgt(T.presCompleted)]
       ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
       document.getElementById("tiles").innerHTML = builders.map(b => `
