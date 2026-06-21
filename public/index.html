@@ -232,6 +232,17 @@
   .total-val { font-size: 24px; font-weight: 800; color: #ff6b6b; text-shadow: 0 0 10px rgba(255,77,58,0.5); }
   .total-lbl { font-size: 13px; color: var(--muted); margin-top: 2px; }
   .total-target { font-size: 12px; color: var(--muted); opacity: 0.5; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+  .preset-btn {
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); transition: all 0.15s; white-space: nowrap;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--text); }
+  .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,77,58,0.1); }
 </style>
 </head>
 <body>
@@ -242,6 +253,17 @@
       <span class="logo-sub">Performance Dashboard</span>
     </div>
   </header>
+
+  <div class="presets" id="presets">
+    <button class="preset-btn active" onclick="setPreset('today',this)">Today</button>
+    <button class="preset-btn" onclick="setPreset('yesterday',this)">Yesterday</button>
+    <button class="preset-btn" onclick="setPreset('till_yesterday',this)">Till Yesterday</button>
+    <button class="preset-btn" onclick="setPreset('this_week',this)">This Week</button>
+    <button class="preset-btn" onclick="setPreset('last_week',this)">Last Week</button>
+    <button class="preset-btn" onclick="setPreset('this_month',this)">This Month</button>
+    <button class="preset-btn" onclick="setPreset('last_month',this)">Last Month</button>
+    <button class="preset-btn" onclick="setPreset('custom',this)">Custom Range</button>
+  </div>
 
   <div class="controls">
     <div class="field">
@@ -333,6 +355,79 @@
 
 <script>
 const DISPLAY = "9:00 AM – 8:00 PM EST";
+
+function estToday() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function estDateOffset(days) {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function estMonday(offset = 0) {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = d.getDay() || 7; // Mon=1 … Sun=7
+  d.setDate(d.getDate() - (day - 1) + offset * 7);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function estMonthStart(offset = 0) {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  d.setMonth(d.getMonth() + offset, 1);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+function estMonthEnd(offset = 0) {
+  const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  d.setMonth(d.getMonth() + offset + 1, 0);
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function setPreset(preset, btn) {
+  document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  const s = document.getElementById("inp-start");
+  const e = document.getElementById("inp-end");
+  const fields = document.querySelectorAll(".controls .field");
+  const isCustom = preset === "custom";
+  fields[0].style.display = isCustom ? "" : "none";
+  fields[1].style.display = isCustom ? "" : "none";
+
+  const nowEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const dow = nowEST.getDay() || 7; // 1=Mon … 7=Sun
+
+  const fmt = d => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+  function offsetDay(base, n) { const d = new Date(base); d.setDate(d.getDate()+n); return d; }
+
+  switch(preset) {
+    case "today":
+      s.value = e.value = fmt(nowEST); break;
+    case "yesterday":
+      s.value = e.value = fmt(offsetDay(nowEST, -1)); break;
+    case "till_yesterday": {
+      const mon = offsetDay(nowEST, -(dow-1));
+      s.value = fmt(mon); e.value = fmt(offsetDay(nowEST, -1)); break;
+    }
+    case "this_week": {
+      const mon = offsetDay(nowEST, -(dow-1));
+      s.value = fmt(mon); e.value = fmt(nowEST); break;
+    }
+    case "last_week": {
+      const lastMon = offsetDay(nowEST, -(dow-1)-7);
+      const lastSun = offsetDay(lastMon, 6);
+      s.value = fmt(lastMon); e.value = fmt(lastSun); break;
+    }
+    case "this_month": {
+      const m1 = new Date(nowEST.getFullYear(), nowEST.getMonth(), 1);
+      s.value = fmt(m1); e.value = fmt(nowEST); break;
+    }
+    case "last_month": {
+      const lm1 = new Date(nowEST.getFullYear(), nowEST.getMonth()-1, 1);
+      const lme  = new Date(nowEST.getFullYear(), nowEST.getMonth(), 0);
+      s.value = fmt(lm1); e.value = fmt(lme); break;
+    }
+    case "custom": break;
+  }
+}
 
 const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
 const WEIGHTS = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
@@ -440,9 +535,8 @@ function zoneCloser(c, score){
   return zone(score);                       // else use normal score-based zone
 }
 
-const today = new Date().toISOString().split("T")[0];
-document.getElementById("inp-start").value = today;
-document.getElementById("inp-end").value   = today;
+// Initialise: fire Today preset, hide manual date fields
+setPreset("today", document.querySelector(".preset-btn.active"));
 
 function setStatus(msg){ const el=document.getElementById("status"); el.className="status-bar"+(msg?" show":""); document.getElementById("status-text").textContent=msg||""; }
 function setError(msg){ const el=document.getElementById("error-box"); el.className="error-box"+(msg?" show":""); el.textContent=msg||""; }
