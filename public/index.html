@@ -172,6 +172,45 @@
   .totals { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 1.5rem; box-shadow: 0 0 30px rgba(0,0,0,0.4); }
   .totals-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
   .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
+
+  /* Breakdown table */
+  .breakdown-wrap { margin-bottom: 1.5rem; }
+  .breakdown-toggle {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
+    padding: 8px 0; user-select: none;
+  }
+  .breakdown-toggle:hover { color: var(--text); }
+  .breakdown-toggle .chevron { transition: transform 0.2s; display: inline-block; }
+  .breakdown-toggle.open .chevron { transform: rotate(90deg); }
+  .breakdown-table-wrap { display: none; overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  .breakdown-table-wrap.show { display: block; }
+  .breakdown-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .breakdown-table th {
+    background: #0a0d1a; color: var(--muted); font-weight: 700; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 12px; text-align: center;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .breakdown-table th:first-child { text-align: left; padding-left: 14px; }
+  .breakdown-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+  .breakdown-table td:first-child { text-align: left; padding-left: 14px; }
+  .breakdown-table tr:last-child td { border-bottom: none; }
+  .breakdown-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .bt-name { font-weight: 700; font-size: 14px; }
+  .bt-tl { font-size: 11px; color: var(--muted); }
+  .bt-kpi { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .bt-val { font-weight: 800; font-size: 14px; }
+  .bt-target { font-size: 10px; color: var(--muted); }
+  .bt-pct { font-size: 11px; font-weight: 700; }
+  .bt-bar-wrap { width: 60px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin: 3px auto 0; }
+  .bt-bar { height: 4px; border-radius: 2px; max-width: 100%; }
+  .bt-score { font-size: 20px; font-weight: 900; }
+  .bt-weight { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .bt-contrib { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .bt-rank { font-size: 16px; font-weight: 900; color: var(--muted); width: 28px; text-align: center; }
+  .bt-rank.r1 { color: #ffd740; text-shadow: 0 0 8px #ffd740; }
+  .bt-rank.r2 { color: #c0c0c0; text-shadow: 0 0 6px #c0c0c0; }
+  .bt-rank.r3 { color: #cd7f32; text-shadow: 0 0 6px #cd7f32; }
   .total-item { text-align: center; }
   .total-val { font-size: 24px; font-weight: 800; color: #ff6b6b; text-shadow: 0 0 10px rgba(255,77,58,0.5); }
   .total-lbl { font-size: 13px; color: var(--muted); margin-top: 2px; }
@@ -222,6 +261,15 @@
       <div class="totals-grid" id="totals-grid"></div>
     </div>
 
+    <div class="breakdown-wrap">
+      <div class="breakdown-toggle" id="breakdown-toggle" onclick="toggleBreakdown()">
+        <span class="chevron">▶</span> Individual Performance Breakdown
+      </div>
+      <div class="breakdown-table-wrap" id="breakdown-table-wrap">
+        <table class="breakdown-table" id="breakdown-table"></table>
+      </div>
+    </div>
+
     <div class="tiles" id="tiles"></div>
 
     <div class="bottom">
@@ -246,6 +294,66 @@ const TARGETS_CLOSER = { calls:60, minutes:90, presentations:2, dealsClosed:1 };
 const WEIGHTS_CLOSER = { calls:0.10, minutes:0.10, presentations:0.30, dealsClosed:0.50 };
 
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
+
+function toggleBreakdown(){
+  const tog = document.getElementById("breakdown-toggle");
+  const wrap = document.getElementById("breakdown-table-wrap");
+  tog.classList.toggle("open");
+  wrap.classList.toggle("show");
+}
+
+const ZONE_COLOR = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a", leave:"#3a3a48" };
+
+function kpiCell(actual, target, weight){
+  const raw = target > 0 ? (actual / target) * 100 : 0;
+  const capped = Math.min(150, raw);
+  const contrib = (capped * weight).toFixed(1);
+  const pctColor = capped >= 100 ? "#00e676" : capped >= 75 ? "#ffab00" : "#ff4d6a";
+  const barW = Math.min(100, (capped / 150) * 100).toFixed(0);
+  return `<td>
+    <div class="bt-kpi">
+      <div class="bt-val">${actual}</div>
+      <div class="bt-target">/ ${target}</div>
+      <div class="bt-bar-wrap"><div class="bt-bar" style="width:${barW}%;background:${pctColor}"></div></div>
+      <div class="bt-pct" style="color:${pctColor}">${Math.round(capped)}%</div>
+      <div class="bt-weight">+${contrib}pts</div>
+    </div>
+  </td>`;
+}
+
+function renderBreakdownTable(people, kpis, targets, weights, isCloser){
+  const zoneNeon = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a" };
+  const head = `<thead><tr>
+    <th>#</th>
+    <th style="text-align:left">Name</th>
+    ${kpis.map(k=>`<th>${k.label}<br><span style="font-size:10px;opacity:0.5">${Math.round(k.weight*100)}% weight · target ${k.target}</span></th>`).join("")}
+    <th>Score</th>
+  </tr></thead>`;
+
+  const rows = people.map((p, i) => {
+    const onLeave = p.calls === 0;
+    const scoreColor = onLeave ? "#3a3a48" : (zoneNeon[p.zone] || "#aaa");
+    const rank = i + 1;
+    const rankClass = rank === 1 ? "r1" : rank === 2 ? "r2" : rank === 3 ? "r3" : "";
+    return `<tr>
+      <td><div class="bt-rank ${rankClass}">${onLeave ? "—" : rank}</div></td>
+      <td>
+        <div class="bt-name" style="color:${scoreColor}">${p.name}</div>
+        ${p.teamLead ? `<div class="bt-tl">${p.teamLead}</div>` : ""}
+      </td>
+      ${onLeave
+        ? kpis.map(() => `<td style="color:#2e2e3a;font-size:12px">—</td>`).join("")
+        : kpis.map(k => kpiCell(p[k.field], k.target, k.weight)).join("")
+      }
+      <td>
+        <div class="bt-score" style="color:${scoreColor};text-shadow:0 0 10px ${scoreColor}">${onLeave ? "—" : p.composite+"%"}</div>
+        ${!onLeave ? `<div class="bt-contrib" style="color:${scoreColor};opacity:0.6">${p.zone} card</div>` : `<div class="bt-contrib">On Leave</div>`}
+      </td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("breakdown-table").innerHTML = head + `<tbody>${rows}</tbody>`;
+}
 
 function scoreBuilder(b, t){
   const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
@@ -419,6 +527,36 @@ document.getElementById("btn-gen").onclick = async function(){
           </div>` : ""}
         </div>`;
       }).join("");
+    }
+
+    // Reset breakdown toggle closed on each new report
+    document.getElementById("breakdown-toggle").classList.remove("open");
+    document.getElementById("breakdown-table-wrap").classList.remove("show");
+
+    if (isCloser) {
+      const closerKpis = [
+        { label:"Follow-up Calls", field:"calls",        target:TC.calls,         weight:WEIGHTS_CLOSER.calls },
+        { label:"Call Minutes",    field:"minutes",       target:TC.minutes,       weight:WEIGHTS_CLOSER.minutes },
+        { label:"Pres. Held",      field:"presentations", target:TC.presentations, weight:WEIGHTS_CLOSER.presentations },
+        { label:"Deals Closed",    field:"dealsClosed",   target:TC.dealsClosed,   weight:WEIGHTS_CLOSER.dealsClosed },
+      ];
+      renderBreakdownTable(
+        data.closers.map(c=>({...c, composite:scoreCloser(c,TC), zone:zone(scoreCloser(c,TC))})).sort((a,b)=>b.composite-a.composite),
+        closerKpis, TC, WEIGHTS_CLOSER, true
+      );
+    } else {
+      const builderKpis = [
+        { label:"Outbound Calls",     field:"calls",          target:T.calls,          weight:WEIGHTS.calls },
+        { label:"Call Minutes",       field:"minutes",         target:T.minutes,        weight:WEIGHTS.minutes },
+        { label:"Qualified Leads",    field:"leads",           target:T.leads,          weight:WEIGHTS.leads },
+        { label:"Discoveries",        field:"discoveries",     target:T.discoveries,    weight:WEIGHTS.discoveries },
+        { label:"Pres. Booked",       field:"presBooked",      target:T.presBooked,     weight:WEIGHTS.presBooked },
+        { label:"Pres. Completed",    field:"presCompleted",   target:T.presCompleted,  weight:WEIGHTS.presCompleted },
+      ];
+      renderBreakdownTable(
+        data.builders.map(b=>({...b, composite:scoreBuilder(b,T), zone:zone(scoreBuilder(b,T))})).sort((a,b)=>b.composite-a.composite),
+        builderKpis, T, WEIGHTS, false
+      );
     }
 
     document.getElementById("results").style.display = "block";
