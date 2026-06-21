@@ -211,6 +211,23 @@
   .bt-rank.r1 { color: #ffd740; text-shadow: 0 0 8px #ffd740; }
   .bt-rank.r2 { color: #c0c0c0; text-shadow: 0 0 6px #c0c0c0; }
   .bt-rank.r3 { color: #cd7f32; text-shadow: 0 0 6px #cd7f32; }
+
+  /* Closer explanation banner */
+  .closer-rules { display:none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 1.5rem; }
+  .closer-rules.show { display: block; }
+  .closer-rules-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; }
+  .closer-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cr-section { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .cr-section-title { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+  .cr-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+  .cr-row:last-child { border-bottom: none; }
+  .cr-kpi { color: var(--text); }
+  .cr-detail { color: var(--muted); font-size: 12px; }
+  .cr-weight { font-weight: 800; font-size: 13px; }
+  .override-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+  .override-row:last-child { border-bottom: none; }
+  .override-badge { font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; border: 1px solid currentColor; white-space: nowrap; }
+  .override-desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .total-item { text-align: center; }
   .total-val { font-size: 24px; font-weight: 800; color: #ff6b6b; text-shadow: 0 0 10px rgba(255,77,58,0.5); }
   .total-lbl { font-size: 13px; color: var(--muted); margin-top: 2px; }
@@ -256,6 +273,36 @@
       <span id="meta-right"></span>
     </div>
 
+    <div class="closer-rules" id="closer-rules">
+      <div class="closer-rules-title">How Closer Scores Work</div>
+      <div class="closer-rules-grid">
+        <div class="cr-section">
+          <div class="cr-section-title">📊 KPI Weights</div>
+          <div class="cr-row"><span class="cr-kpi">Follow-up Calls</span><span><span class="cr-detail">target 60 &nbsp;</span><span class="cr-weight" style="color:#ff6b6b">40%</span></span></div>
+          <div class="cr-row"><span class="cr-kpi">Call Minutes</span><span><span class="cr-detail">target 120 min &nbsp;</span><span class="cr-weight" style="color:#ffab00">20%</span></span></div>
+          <div class="cr-row"><span class="cr-kpi">Presentations Held</span><span><span class="cr-detail">target 2 &nbsp;</span><span class="cr-weight" style="color:#40c4ff">40%</span></span></div>
+          <div class="cr-row" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">
+            <span class="cr-detail">Each KPI capped at 150% of target</span>
+          </div>
+        </div>
+        <div class="cr-section">
+          <div class="cr-section-title">⚡ Deal Override Rules</div>
+          <div class="override-row">
+            <span class="override-badge" style="color:#ffd740;border-color:#ffd740">🏆 Gold Card</span>
+            <span class="override-desc">2 or more deals closed — <strong style="color:#ffd740">automatic Gold</strong> regardless of calls, minutes or presentations</span>
+          </div>
+          <div class="override-row">
+            <span class="override-badge" style="color:#00e676;border-color:#00e676">✅ Green Card</span>
+            <span class="override-desc">1 deal closed — <strong style="color:#00e676">automatic Green</strong> regardless of calls, minutes or presentations</span>
+          </div>
+          <div class="override-row">
+            <span class="override-badge" style="color:#6b7499;border-color:#6b7499">Score-based</span>
+            <span class="override-desc">0 deals closed — card tier determined by weighted KPI score</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="totals">
       <div class="totals-title">Team Totals</div>
       <div class="totals-grid" id="totals-grid"></div>
@@ -290,8 +337,9 @@ const DISPLAY = "9:00 AM – 8:00 PM EST";
 const TARGETS = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
 const WEIGHTS = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
 
-const TARGETS_CLOSER = { calls:60, minutes:90, presentations:2, dealsClosed:1 };
-const WEIGHTS_CLOSER = { calls:0.10, minutes:0.10, presentations:0.30, dealsClosed:0.50 };
+const TARGETS_CLOSER = { calls:60, minutes:120, presentations:2 };
+const WEIGHTS_CLOSER = { calls:0.40, minutes:0.20, presentations:0.40 };
+// Deal override: 1 deal = Green Card, 2+ deals = Gold Card (ignores score)
 
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
 
@@ -335,6 +383,8 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
     const scoreColor = onLeave ? "#3a3a48" : (zoneNeon[p.zone] || "#aaa");
     const rank = i + 1;
     const rankClass = rank === 1 ? "r1" : rank === 2 ? "r2" : rank === 3 ? "r3" : "";
+    const dealOverride = !onLeave && p.dealsClosed >= 1;
+    const overrideLabel = p.dealsClosed >= 2 ? "🏆 Gold Override" : p.dealsClosed === 1 ? "✅ Green Override" : "";
     return `<tr>
       <td><div class="bt-rank ${rankClass}">${onLeave ? "—" : rank}</div></td>
       <td>
@@ -343,11 +393,18 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
       </td>
       ${onLeave
         ? kpis.map(() => `<td style="color:#2e2e3a;font-size:12px">—</td>`).join("")
-        : kpis.map(k => kpiCell(p[k.field], k.target, k.weight)).join("")
+        : kpis.map(k => k.override
+            ? `<td><div class="bt-kpi">
+                <div class="bt-val" style="color:${p.dealsClosed>=2?"#ffd740":p.dealsClosed>=1?"#00e676":"#ff4d6a"}">${p.dealsClosed}</div>
+                <div class="bt-target">deals</div>
+                ${dealOverride ? `<div class="bt-pct" style="color:${p.dealsClosed>=2?"#ffd740":"#00e676"};font-size:10px;margin-top:3px">${overrideLabel}</div>` : ""}
+               </div></td>`
+            : kpiCell(p[k.field], k.target, k.weight)
+          ).join("")
       }
       <td>
         <div class="bt-score" style="color:${scoreColor};text-shadow:0 0 10px ${scoreColor}">${onLeave ? "—" : p.composite+"%"}</div>
-        ${!onLeave ? `<div class="bt-contrib" style="color:${scoreColor};opacity:0.6">${p.zone} card</div>` : `<div class="bt-contrib">On Leave</div>`}
+        ${!onLeave ? `<div class="bt-contrib" style="color:${scoreColor};opacity:0.7">${dealOverride ? overrideLabel : p.zone+" card"}</div>` : `<div class="bt-contrib">On Leave</div>`}
       </td>
     </tr>`;
   }).join("");
@@ -372,9 +429,15 @@ function scoreCloser(c, t){
   return Math.round(
     cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
     cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
-    cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations +
-    cap(c.dealsClosed,t.dealsClosed)*WEIGHTS_CLOSER.dealsClosed
+    cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations
   );
+}
+
+function zoneCloser(c, score){
+  if (c.calls === 0) return "red";
+  if (c.dealsClosed >= 2) return "gold";   // 2+ deals → Gold Card override
+  if (c.dealsClosed >= 1) return "green";  // 1 deal  → Green Card override
+  return zone(score);                       // else use normal score-based zone
 }
 
 const today = new Date().toISOString().split("T")[0];
@@ -419,9 +482,10 @@ document.getElementById("btn-gen").onclick = async function(){
     }
 
     document.getElementById("meta-left").textContent = `${dl}  ·  ${DISPLAY}`;
+    document.getElementById("closer-rules").className = "closer-rules" + (isCloser ? " show" : "");
 
     if (isCloser) {
-      const closers = data.closers.map(c => { const s=scoreCloser(c,TC); return {...c, composite:s, zone:zone(s)}; });
+      const closers = data.closers.map(c => { const s=scoreCloser(c,TC); return {...c, composite:s, zone:zoneCloser(c,s)}; });
       closers.sort((a,b) => b.composite - a.composite);
       document.getElementById("meta-right").textContent = `${closers.length} Closer${closers.length!==1?"s":""}`;
 
@@ -432,7 +496,7 @@ document.getElementById("btn-gen").onclick = async function(){
         ["calls","Calls",(n*TC.calls).toFixed(0)],
         ["minutes","Minutes",(n*TC.minutes).toFixed(0)],
         ["presentations","Pres. Held",(n*TC.presentations).toFixed(0)],
-        ["dealsClosed","Deals Closed",(n*TC.dealsClosed).toFixed(0)],
+        ["dealsClosed","Deals Closed","—"],
         ["newUpfront","New Upfront","—"],
         ["futureUpfront","Future Upfront","—"],
         ["revenue","Revenue (Total)","—"],
@@ -535,13 +599,13 @@ document.getElementById("btn-gen").onclick = async function(){
 
     if (isCloser) {
       const closerKpis = [
-        { label:"Follow-up Calls", field:"calls",        target:TC.calls,         weight:WEIGHTS_CLOSER.calls },
-        { label:"Call Minutes",    field:"minutes",       target:TC.minutes,       weight:WEIGHTS_CLOSER.minutes },
-        { label:"Pres. Held",      field:"presentations", target:TC.presentations, weight:WEIGHTS_CLOSER.presentations },
-        { label:"Deals Closed",    field:"dealsClosed",   target:TC.dealsClosed,   weight:WEIGHTS_CLOSER.dealsClosed },
+        { label:"Follow-up Calls", field:"calls",         target:TC.calls,         weight:WEIGHTS_CLOSER.calls },
+        { label:"Call Minutes",    field:"minutes",        target:TC.minutes,       weight:WEIGHTS_CLOSER.minutes },
+        { label:"Pres. Held",      field:"presentations",  target:TC.presentations, weight:WEIGHTS_CLOSER.presentations },
+        { label:"Deals Closed",    field:"dealsClosed",    target:"—",              weight:0, override:true },
       ];
       renderBreakdownTable(
-        data.closers.map(c=>({...c, composite:scoreCloser(c,TC), zone:zone(scoreCloser(c,TC))})).sort((a,b)=>b.composite-a.composite),
+        data.closers.map(c=>{ const s=scoreCloser(c,TC); return {...c, composite:s, zone:zoneCloser(c,s)}; }).sort((a,b)=>b.composite-a.composite),
         closerKpis, TC, WEIGHTS_CLOSER, true
       );
     } else {
