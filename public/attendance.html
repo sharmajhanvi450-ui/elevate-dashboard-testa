@@ -294,14 +294,13 @@ async function saveAttendance(date, markedBy) {
     marked_by: markedBy,
     updated_at: new Date().toISOString()
   }));
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/attendance`, {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/attendance?on_conflict=person_name,date`, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON,
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates",
-      "X-Upsert": "true"
+      Prefer: "resolution=merge-duplicates,return=minimal"
     },
     body: JSON.stringify(records)
   });
