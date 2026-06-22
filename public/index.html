@@ -656,7 +656,7 @@ function zoneCloser(c, score){
 const ZONE_NEON = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a" };
 
 
-function renderTLView(teams, T, TC) {
+function renderTLView(teams, T, TC, leaveMap = {}) {
   document.getElementById("tiles").style.display = "none";
   document.getElementById("tl-grid").style.display = "grid";
 
@@ -692,7 +692,7 @@ function renderTLView(teams, T, TC) {
     ];
 
     const memberRows = sorted.map(m => {
-      const onLeave = m.calls === 0;
+      const onLeave = (leaveMap[m.name] || 0) >= 1;
       const mColor = onLeave ? "#3a3a48" : (ZONE_NEON[m.zone] || "#aaa");
       const slug = m.name.toLowerCase().replace(/\s+/g,"-");
       const initials = m.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
@@ -873,7 +873,7 @@ document.getElementById("btn-gen").onclick = async function(){
       document.getElementById("totals-grid").innerHTML = "";
       document.getElementById("breakdown-toggle").style.display = "none";
       document.getElementById("breakdown-table-wrap").classList.remove("show");
-      renderTLView(data.teams, T, TC);
+      renderTLView(data.teams, T, TC, leaveMap);
       document.getElementById("results").style.display = "block";
       setStatus("");
       return;
@@ -1024,6 +1024,10 @@ document.getElementById("btn-gen").onclick = async function(){
 
     document.getElementById("results").style.display = "block";
     setStatus("");
+
+    // Save to sessionStorage so tab switching doesn't lose the report
+    sessionStorage.setItem("lastReport", JSON.stringify({ startDate, endDate, role, data, leaveMap }));
+
   } catch(e) {
     setError(e.message || "Something went wrong. Please try again.");
     setStatus("");
@@ -1031,6 +1035,22 @@ document.getElementById("btn-gen").onclick = async function(){
     btn.disabled = false; btn.textContent = "Generate Report";
   }
 };
+
+// Restore last report if returning from another tab
+(function restoreLastReport() {
+  const saved = sessionStorage.getItem("lastReport");
+  if (!saved) return;
+  try {
+    const { startDate, endDate, role, data, leaveMap } = JSON.parse(saved);
+    // Restore date inputs and role
+    document.getElementById("inp-start").value = startDate;
+    document.getElementById("inp-end").value   = endDate;
+    document.getElementById("inp-role").value  = role;
+    // Simulate a click to re-render using cached data
+    // We re-trigger the onclick which will hit the 3-min Supabase cache anyway
+    document.getElementById("btn-gen").click();
+  } catch(_) { sessionStorage.removeItem("lastReport"); }
+})();
 
 // ── Supabase Auth ─────────────────────────────────────────────────────────────
 const SUPABASE_URL  = "https://ugghpsupgqycsnvssseo.supabase.co";
