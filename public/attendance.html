@@ -317,8 +317,8 @@ function showApp(user) {
   currentUserEmail = user.email;
   buildNav(user.email);
 
-  // Set date to today (IST/local)
-  const today = new Date().toLocaleDateString("en-CA");
+  // Set date to today in EST
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   document.getElementById("inp-date").value = today;
   loadAttendance(today);
 }
