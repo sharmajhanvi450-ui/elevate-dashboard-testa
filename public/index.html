@@ -951,6 +951,31 @@ document.getElementById("btn-gen").onclick = async function(){
     btn.disabled = false; btn.textContent = "Generate Report";
   }
 };
+
+// ── Auto-refresh every 3 minutes during working hours (9AM–8PM EST) ──────────
+const AUTO_REFRESH_MS = 3 * 60 * 1000;
+let autoRefreshTimer = null;
+
+function isWithinWorkHours() {
+  const nowEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const h = nowEST.getHours() + nowEST.getMinutes() / 60;
+  return h >= 9 && h < 20;
+}
+
+function scheduleAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(() => {
+    // Only auto-refresh when "Today" preset is active and within work hours
+    const activePreset = document.querySelector(".preset-btn.active");
+    const isToday = activePreset && activePreset.textContent.trim() === "Today";
+    if (isToday && isWithinWorkHours()) {
+      const btn = document.getElementById("btn-gen");
+      if (!btn.disabled) btn.click();
+    }
+  }, AUTO_REFRESH_MS);
+}
+
+scheduleAutoRefresh();
 </script>
 </body>
 </html>
