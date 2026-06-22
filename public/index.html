@@ -643,9 +643,9 @@ function scoreCloser(c, t){
     cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
     cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
     cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations;
-  // 0 deals: full KPI score (up to 150%) | 1 deal: ×1.25 floor 95 | 2+ deals: ×1.50 floor 110
-  if (c.dealsClosed >= 2) return Math.round(Math.max(kpiScore * 1.50, 110));
-  if (c.dealsClosed === 1) return Math.round(Math.max(kpiScore * 1.25, 95));
+  // 0 deals: KPI only max 150 | 1 deal: ×1.25 floor 95 cap 125 | 2+ deals: ×1.50 floor 110 cap 150
+  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(kpiScore * 1.50, 110), 150));
+  if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(kpiScore * 1.25, 95), 125));
   return Math.round(kpiScore);
 }
 
