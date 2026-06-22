@@ -439,14 +439,6 @@
             <span class="cr-detail">Each member scored against their own role (Builder or Closer) KPIs + deal override rules apply to Closers</span>
           </div>
         </div>
-        <div class="cr-section">
-          <div class="cr-section-title">💰 Weekly Reward Tiers</div>
-          <div class="cr-row"><span class="override-badge" style="color:#ffd740;border-color:#ffd740;font-size:11px;padding:2px 8px">110%+</span><span class="cr-detail" style="color:#ffd740;font-weight:700">₹5,000</span></div>
-          <div class="cr-row"><span class="override-badge" style="color:#00e676;border-color:#00e676;font-size:11px;padding:2px 8px">95–109%</span><span class="cr-detail" style="color:#00e676;font-weight:700">₹3,000</span></div>
-          <div class="cr-row"><span class="override-badge" style="color:#40c4ff;border-color:#40c4ff;font-size:11px;padding:2px 8px">85–94%</span><span class="cr-detail" style="color:#40c4ff;font-weight:700">₹2,000</span></div>
-          <div class="cr-row"><span class="override-badge" style="color:#ffab00;border-color:#ffab00;font-size:11px;padding:2px 8px">75–84%</span><span class="cr-detail" style="color:#ffab00;font-weight:700">₹1,000</span></div>
-          <div class="cr-row"><span class="override-badge" style="color:#6b7499;border-color:#6b7499;font-size:11px;padding:2px 8px">Below 75%</span><span class="cr-detail" style="color:#6b7499;font-weight:700">₹0</span></div>
-        </div>
       </div>
     </div>
 
@@ -663,13 +655,6 @@ function zoneCloser(c, score){
 
 const ZONE_NEON = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a" };
 
-function tlReward(score) {
-  if (score >= 110) return { amt: 5000, label: "₹5,000" };
-  if (score >= 95)  return { amt: 3000, label: "₹3,000" };
-  if (score >= 85)  return { amt: 2000, label: "₹2,000" };
-  if (score >= 75)  return { amt: 1000, label: "₹1,000" };
-  return { amt: 0, label: "₹0" };
-}
 
 function renderTLView(teams, T, TC) {
   document.getElementById("tiles").style.display = "none";
@@ -699,7 +684,6 @@ function renderTLView(teams, T, TC) {
 
     const z = zone(healthScore);
     const neon = ZONE_NEON[z] || "#aaa";
-    const reward = tlReward(healthScore);
 
     // Member rows sorted by score desc, on-leave at bottom
     const sorted = [
@@ -743,7 +727,6 @@ function renderTLView(teams, T, TC) {
             <div class="tl-score" style="color:${neon};text-shadow:0 0 18px ${neon}">${healthScore}%</div>
           </div>
         </div>
-        <div class="tl-reward" style="color:${neon}">${reward.label} <span style="font-size:13px;opacity:0.7">weekly reward</span></div>
         <div class="tl-stats">
           <span><strong>${activeMembers.length}</strong> active</span>
           <span><strong>${onLeaveCount}</strong> on leave</span>
