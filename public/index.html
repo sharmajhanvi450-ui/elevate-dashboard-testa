@@ -472,7 +472,7 @@
 </div>
 
 <script>
-const DISPLAY = "10:30 AM – 8:30 PM EST";
+const DISPLAY = "10:30 AM – 7:30 PM EST";
 
 function estToday() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -807,7 +807,7 @@ document.getElementById("btn-gen").onclick = async function(){
 
     // ── Time-based target proration ───────────────────────────────────────────
     // Work window: 9:00 AM – 8:00 PM EST = 11 hours
-    const WORK_START_H = 10.5, WORK_END_H = 20.5, WORK_HOURS = 10;
+    const WORK_START_H = 10.5, WORK_END_H = 19.5, WORK_HOURS = 9.0;
 
     function getDayFraction(dateStr) {
       const todayEST = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
