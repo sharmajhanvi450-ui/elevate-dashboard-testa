@@ -1061,10 +1061,14 @@ function tryRestoreReport() {
 }
 
 // Auto-fire report when role dropdown changes
+let _roleChangeTimer = null;
 document.getElementById("inp-role").addEventListener("change", () => {
-  const start = document.getElementById("inp-start").value;
-  const end   = document.getElementById("inp-end").value;
-  if (start && end) document.getElementById("btn-gen").click();
+  clearTimeout(_roleChangeTimer);
+  _roleChangeTimer = setTimeout(() => {
+    const start = document.getElementById("inp-start").value;
+    const end   = document.getElementById("inp-end").value;
+    if (start && end) document.getElementById("btn-gen").click();
+  }, 400);
 });
 
 // ── Supabase Auth ─────────────────────────────────────────────────────────────

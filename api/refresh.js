@@ -35,19 +35,18 @@ async function setCached(key, data) {
   });
 }
 
+// In-memory token cache — reuse for 50 min to avoid Zoho rate limits
+let _tokenCache = { token: null, expiresAt: 0 };
 async function getAccessToken() {
+  if (_tokenCache.token && Date.now() < _tokenCache.expiresAt) return _tokenCache.token;
   const r = await fetch(`${AUTH_DOMAIN}/oauth/v2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: REFRESH_TOKEN,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-    }),
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: REFRESH_TOKEN, client_id: CLIENT_ID, client_secret: CLIENT_SECRET }),
   });
   const data = await r.json();
   if (!data.access_token) throw new Error("Auth failed: " + JSON.stringify(data));
+  _tokenCache = { token: data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
   return data.access_token;
 }
 

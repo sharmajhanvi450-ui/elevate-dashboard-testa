@@ -2,6 +2,21 @@ const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_ANON_KEY;
 const CACHE_TTL_MS  = 20 * 60 * 1000; // 20 minutes — matches proactive refresh interval
 
+// In-memory token cache — reuse access token for 50 min to avoid Zoho rate limits
+let _tokenCache = { token: null, expiresAt: 0 };
+async function getAccessTokenCached(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN) {
+  if (_tokenCache.token && Date.now() < _tokenCache.expiresAt) return _tokenCache.token;
+  const r = await fetch("https://accounts.zoho.in/oauth/v2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: REFRESH_TOKEN, client_id: CLIENT_ID, client_secret: CLIENT_SECRET }),
+  });
+  const data = await r.json();
+  if (!data.access_token) throw new Error("Auth failed: " + JSON.stringify(data));
+  _tokenCache = { token: data.access_token, expiresAt: Date.now() + 50 * 60 * 1000 };
+  return data.access_token;
+}
+
 async function getCached(key) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const r = await fetch(`${SUPABASE_URL}/rest/v1/report_cache?cache_key=eq.${encodeURIComponent(key)}&select=data,created_at`, {
@@ -49,21 +64,7 @@ export default async function handler(req, res) {
   const AUTH_DOMAIN   = "https://accounts.zoho.in";
   const API_DOMAIN    = "https://www.zohoapis.in";
 
-  async function getAccessToken() {
-    const r = await fetch(`${AUTH_DOMAIN}/oauth/v2/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: REFRESH_TOKEN,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-      }),
-    });
-    const data = await r.json();
-    if (!data.access_token) throw new Error("Auth failed: " + JSON.stringify(data));
-    return data.access_token;
-  }
+  const getAccessToken = () => getAccessTokenCached(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN);
 
   async function zohoGet(token, url) {
     const r = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
