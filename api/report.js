@@ -41,6 +41,15 @@ async function setCached(key, data) {
   });
 }
 
+async function logAPI(type, role, date_range, triggered_by, duration_ms) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  fetch(`${SUPABASE_URL}/rest/v1/api_logs`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ type, role, date_range, triggered_by, duration_ms })
+  }).catch(() => {});
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -50,10 +59,12 @@ export default async function handler(req, res) {
   // ── Cache check ───────────────────────────────────────────────────────────
   const { startDate, endDate, role } = req.query;
   const cacheKey = `${role}|${startDate}|${endDate}`;
+  const t0 = Date.now();
   try {
     const cached = await getCached(cacheKey);
     if (cached) {
       res.setHeader("X-Cache", "HIT");
+      logAPI("cache_hit", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(cached);
     }
   } catch(_) { /* cache miss — proceed normally */ }
@@ -243,6 +254,7 @@ export default async function handler(req, res) {
 
       const result = { teams, startDate, endDate, slot, role };
       setCached(cacheKey, result).catch(() => {});
+      logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
 
@@ -304,6 +316,7 @@ export default async function handler(req, res) {
       }));
       const result = { closers, startDate, endDate, slot, role };
       setCached(cacheKey, result).catch(() => {});
+      logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
 
@@ -346,6 +359,7 @@ export default async function handler(req, res) {
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     const result = { builders, startDate, endDate, slot, role };
     setCached(cacheKey, result).catch(() => {});
+    logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
     return res.status(200).json(result);
 
   } catch (e) {

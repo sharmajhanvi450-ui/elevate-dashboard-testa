@@ -24,6 +24,14 @@ async function anyoneActiveRecently() {
   return Array.isArray(rows) && rows.length > 0;
 }
 
+async function logAPI(type, role, date_range, triggered_by, duration_ms) {
+  fetch(`${SUPABASE_URL}/rest/v1/api_logs`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ type, role, date_range, triggered_by, duration_ms })
+  }).catch(() => {});
+}
+
 async function setCached(key, data) {
   await fetch(`${SUPABASE_URL}/rest/v1/report_cache`, {
     method: "POST",
@@ -258,10 +266,12 @@ export default async function handler(req, res) {
     // Check if anyone was active in last 30 min
     const active = await anyoneActiveRecently();
     if (!active) {
+      logAPI("cron_skip", null, null, "cron", 0);
       return res.status(200).json({ skipped: true, reason: "No active users in last 30 min" });
     }
 
     const date  = getTodayEST();
+    const t0    = Date.now();
     const token = await getAccessToken();
     const ud    = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=ActiveUsers&per_page=200`);
     const allUsers = ud?.users || [];
@@ -273,6 +283,7 @@ export default async function handler(req, res) {
       refreshRole(token, allUsers, "Team Leader", date),
     ]);
 
+    logAPI("cron_run", "all", date, "cron", Date.now() - t0);
     return res.status(200).json({ ok: true, date, refreshed: ["Builder", "Closer", "Team Leader"] });
 
   } catch (e) {

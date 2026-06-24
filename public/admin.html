@@ -132,6 +132,36 @@
   }
   .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
   .empty { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+
+  /* Tabs */
+  .tab-bar { display: flex; gap: 4px; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: none; border: none; color: var(--muted); border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* API log stats */
+  .api-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .api-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+  .api-stat .val { font-size: 32px; font-weight: 800; }
+  .api-stat .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .zoho-val { color: #ff6b9d; }
+  .cache-val { color: var(--green); text-shadow: 0 0 10px var(--green); }
+  .cron-val  { color: var(--gold); }
+  .rate-val  { color: #40c4ff; }
+  .type-badge {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px;
+    border-radius: 20px; border: 1px solid; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .type-zoho   { color: #ff6b9d; border-color: #ff6b9d44; background: #ff6b9d11; }
+  .type-cache  { color: var(--green); border-color: #00e67644; background: #00e67611; }
+  .type-cron   { color: var(--gold); border-color: #ffd74044; background: #ffd74011; }
+  .type-skip   { color: var(--muted); border-color: #6b749944; background: #6b749911; }
 </style>
 </head>
 <body>
@@ -170,44 +200,94 @@
 </header>
 
 <div class="container" id="main-content" style="display:none">
-  <h1>User Activity</h1>
+  <h1>Admin Panel</h1>
   <div class="page-sub" id="last-updated">Loading...</div>
 
-  <div class="stats-row">
-    <div class="stat-card stat-active">
-      <div class="stat-val" id="stat-active">—</div>
-      <div class="stat-lbl">Active now (last 30 min)</div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('activity')">User Activity</button>
+    <button class="tab-btn" onclick="switchTab('api')">API Logs</button>
+  </div>
+
+  <!-- USER ACTIVITY TAB -->
+  <div class="tab-pane active" id="tab-activity">
+    <div class="stats-row">
+      <div class="stat-card stat-active">
+        <div class="stat-val" id="stat-active">—</div>
+        <div class="stat-lbl">Active now (last 30 min)</div>
+      </div>
+      <div class="stat-card stat-total">
+        <div class="stat-val" id="stat-total">—</div>
+        <div class="stat-lbl">Total unique users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-reports">—</div>
+        <div class="stat-lbl">Reports generated (all time)</div>
+      </div>
     </div>
-    <div class="stat-card stat-total">
-      <div class="stat-val" id="stat-total">—</div>
-      <div class="stat-lbl">Total unique users</div>
+
+    <div class="section-title">Active Users</div>
+    <div class="active-grid" id="active-grid"></div>
+
+    <div style="display:flex;align-items:center;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">Activity Log</div>
+      <button class="refresh-btn" id="btn-refresh">↻ Refresh</button>
     </div>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-reports">—</div>
-      <div class="stat-lbl">Reports generated (all time)</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Report Type</th>
+            <th>Date Range</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="activity-tbody"></tbody>
+      </table>
     </div>
   </div>
 
-  <div class="section-title">Active Users</div>
-  <div class="active-grid" id="active-grid"></div>
+  <!-- API LOGS TAB -->
+  <div class="tab-pane" id="tab-api">
+    <div class="api-stats">
+      <div class="api-stat">
+        <div class="val zoho-val" id="api-zoho-today">—</div>
+        <div class="lbl">Zoho API calls today</div>
+      </div>
+      <div class="api-stat">
+        <div class="val cache-val" id="api-cache-today">—</div>
+        <div class="lbl">Cache hits today</div>
+      </div>
+      <div class="api-stat">
+        <div class="val rate-val" id="api-hit-rate">—</div>
+        <div class="lbl">Cache hit rate</div>
+      </div>
+      <div class="api-stat">
+        <div class="val cron-val" id="api-cron-today">—</div>
+        <div class="lbl">Cron runs today</div>
+      </div>
+    </div>
 
-  <div style="display:flex;align-items:center;margin-bottom:12px">
-    <div class="section-title" style="margin-bottom:0">Activity Log</div>
-    <button class="refresh-btn" id="btn-refresh">↻ Refresh</button>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>Email</th>
-          <th>Report Type</th>
-          <th>Date Range</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody id="activity-tbody"></tbody>
-    </table>
+    <div style="display:flex;align-items:center;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">API Request Log</div>
+      <button class="refresh-btn" id="btn-refresh-api">↻ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Role</th>
+            <th>Date Range</th>
+            <th>Triggered By</th>
+            <th>Duration</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="api-tbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -299,6 +379,59 @@ async function loadActivity() {
   }
 }
 
+function switchTab(name) {
+  document.querySelectorAll(".tab-btn").forEach((b, i) => {
+    b.classList.toggle("active", ["activity","api"][i] === name);
+  });
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  if (name === "api") loadApiLogs();
+}
+
+async function loadApiLogs() {
+  if (!currentSession) return;
+  const todayEST = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const sinceISO = new Date(todayEST + "T00:00:00-05:00").toISOString();
+
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/api_logs?select=*&order=created_at.desc&limit=300`,
+    { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } }
+  );
+  const rows = await r.json();
+  if (!Array.isArray(rows)) return;
+
+  const today = rows.filter(r => r.created_at >= sinceISO);
+  const zohoToday  = today.filter(r => r.type === "zoho_call").length;
+  const cacheToday = today.filter(r => r.type === "cache_hit").length;
+  const cronToday  = today.filter(r => r.type === "cron_run").length;
+  const total = zohoToday + cacheToday;
+  const hitRate = total > 0 ? Math.round((cacheToday / total) * 100) : 0;
+
+  document.getElementById("api-zoho-today").textContent  = zohoToday;
+  document.getElementById("api-cache-today").textContent = cacheToday;
+  document.getElementById("api-hit-rate").textContent    = hitRate + "%";
+  document.getElementById("api-cron-today").textContent  = cronToday;
+
+  const typeLabel = { zoho_call: "Zoho API", cache_hit: "Cache Hit", cron_run: "Cron Run", cron_skip: "Cron Skip" };
+  const typeCls   = { zoho_call: "type-zoho", cache_hit: "type-cache", cron_run: "type-cron", cron_skip: "type-skip" };
+
+  const tbody = document.getElementById("api-tbody");
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No API logs yet.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td><span class="type-badge ${typeCls[r.type] || ''}">${typeLabel[r.type] || r.type}</span></td>
+        <td>${r.role ? `<span class="${badgeClass(r.role)}">${r.role}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.date_range || "—"}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.triggered_by || "—"}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.duration_ms != null ? r.duration_ms + " ms" : "—"}</td>
+        <td class="time-cell">${fmtTime(r.created_at)}</td>
+      </tr>
+    `).join("");
+  }
+}
+
 function buildNav(email) {
   const currentPage = window.location.pathname;
   const pages = [
@@ -356,6 +489,8 @@ document.getElementById("btn-google-signin").onclick = async () => {
   });
   if (error) document.getElementById("auth-error").textContent = error.message;
 };
+
+document.getElementById("btn-refresh-api").onclick = loadApiLogs;
 
 document.getElementById("btn-signout").onclick = async () => {
   await supabaseClient.auth.signOut();
