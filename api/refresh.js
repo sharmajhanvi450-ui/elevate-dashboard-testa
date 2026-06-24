@@ -263,11 +263,14 @@ export default async function handler(req, res) {
   if (secret !== CRON_SECRET) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    // Check if anyone was active in last 30 min
-    const active = await anyoneActiveRecently();
-    if (!active) {
-      logAPI("cron_skip", null, null, "cron", 0);
-      return res.status(200).json({ skipped: true, reason: "No active users in last 30 min" });
+    // Check if anyone was active in last 30 min (skip check if force=true)
+    const force = req.query.force === "true";
+    if (!force) {
+      const active = await anyoneActiveRecently();
+      if (!active) {
+        logAPI("cron_skip", null, null, "cron", 0);
+        return res.status(200).json({ skipped: true, reason: "No active users in last 30 min" });
+      }
     }
 
     const date  = getTodayEST();

@@ -383,8 +383,9 @@
         <option value="Team Leader">Team Leaders</option>
       </select>
     </div>
-    <div class="field" style="display:flex;align-items:flex-end">
-      <button class="btn" id="btn-gen" style="width:100%">Generate Report</button>
+    <div class="field" style="display:flex;align-items:flex-end;gap:8px">
+      <button class="btn" id="btn-gen" style="flex:1">Generate Report</button>
+      <button class="btn" id="btn-force-refresh" title="Force refresh cache from Zoho" style="display:none;background:#1e2640;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 14px;flex-shrink:0">↻ Force</button>
     </div>
   </div>
 
@@ -1061,6 +1062,26 @@ function tryRestoreReport() {
 }
 
 // Auto-fire report when role dropdown changes
+document.getElementById("btn-force-refresh").onclick = async function() {
+  const btn = this;
+  btn.disabled = true; btn.textContent = "↻ Refreshing...";
+  setStatus("Forcing fresh data from Zoho CRM...");
+  try {
+    const res = await fetch("/api/refresh?secret=elevate2024&force=true");
+    const data = await res.json();
+    if (data.ok) {
+      setStatus("Cache refreshed ✓ — loading fresh data...");
+      setTimeout(() => document.getElementById("btn-gen").click(), 800);
+    } else {
+      setStatus("Refresh failed: " + (data.error || JSON.stringify(data)));
+    }
+  } catch(e) {
+    setStatus("Refresh error: " + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "↻ Force";
+  }
+};
+
 let _roleChangeTimer = null;
 document.getElementById("inp-role").addEventListener("change", () => {
   clearTimeout(_roleChangeTimer);
@@ -1112,6 +1133,9 @@ function showApp(user) {
   userAvatar.src = user.user_metadata?.avatar_url || "";
   userAvatar.style.display = user.user_metadata?.avatar_url ? "" : "none";
   buildNav(user.email);
+  if (ADMIN_EMAILS.includes(user.email)) {
+    document.getElementById("btn-force-refresh").style.display = "";
+  }
   if (!_appShown) { _appShown = true; tryRestoreReport(); }
 }
 
