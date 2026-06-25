@@ -62,8 +62,8 @@ async function fetchByDateRange(token, module, fields, startDate, endDate, dateF
     let all = [], page = 1;
     while (true) {
       let criteria = `(${dateField}:equals:${date})`;
-      if (extraCriteria) criteria += `AND(${extraCriteria})`;
-      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${criteria}&per_page=200&page=${page}`;
+      if (extraCriteria) criteria += `AND${extraCriteria}`;
+      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`;
       const r = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
       if (r.status === 204) break;
       const data = await r.json();
@@ -112,18 +112,18 @@ export default async function handler(req, res) {
     // Build filter criteria strings
     function lcCriteria(extra) {
       const parts = [];
-      if (teamLead) parts.push(`Team_Lead:equals:${teamLead}`);
-      if (source)   parts.push(`Lead_Source_BDE_:equals:${source}`);
-      if (bde)      parts.push(`BDE__Name_:equals:${bde}`);
-      if (extra)    parts.push(extra);
+      if (teamLead) parts.push(`(Team_Lead:equals:${teamLead})`);
+      if (source)   parts.push(`(Lead_Source_BDE_:equals:${source})`);
+      if (bde)      parts.push(`(BDE__Name_:equals:${bde})`);
+      if (extra)    parts.push(`(${extra})`);
       return parts.length ? parts.join("AND") : null;
     }
     function dCriteria(extra) {
       const parts = [];
-      if (teamLead) parts.push(`Team_Lead:equals:${teamLead}`);
-      if (source)   parts.push(`Lead_Source_BDE_:equals:${source}`);
-      if (bde)      parts.push(`BDE_Name:equals:${bde}`);
-      if (extra)    parts.push(extra);
+      if (teamLead) parts.push(`(Team_Lead:equals:${teamLead})`);
+      if (source)   parts.push(`(Lead_Source_BDE_:equals:${source})`);
+      if (bde)      parts.push(`(BDE_Name:equals:${bde})`);
+      if (extra)    parts.push(`(${extra})`);
       return parts.length ? parts.join("AND") : null;
     }
 
