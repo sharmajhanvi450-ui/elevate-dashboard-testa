@@ -388,6 +388,14 @@
       <button class="btn" id="btn-gen" style="flex:1">Generate Report</button>
       <button class="btn" id="btn-force-refresh" title="Force refresh cache from Zoho" style="display:none;background:#1e2640;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 14px;flex-shrink:0">↻ Force</button>
     </div>
+    <div class="field" style="display:flex;align-items:flex-end;padding-bottom:4px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--muted)">
+        <div id="cap-toggle" onclick="toggleCap()" style="width:36px;height:20px;border-radius:10px;background:#1e2640;border:1px solid var(--border);cursor:pointer;position:relative;transition:background 0.2s">
+          <div id="cap-knob" style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:all 0.2s"></div>
+        </div>
+        <span id="cap-label">Cap 150%: OFF</span>
+      </label>
+    </div>
   </div>
 
   <div class="status-bar" id="status"><div class="spinner"></div><span id="status-text"></span></div>
@@ -627,8 +635,29 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
   document.getElementById("breakdown-table").innerHTML = head + `<tbody>${rows}</tbody>`;
 }
 
+let CAP_ENABLED = false;
+function toggleCap(){
+  CAP_ENABLED = !CAP_ENABLED;
+  const tog = document.getElementById("cap-toggle");
+  const knob = document.getElementById("cap-knob");
+  const lbl = document.getElementById("cap-label");
+  if(CAP_ENABLED){
+    tog.style.background = "#ff4d3a";
+    knob.style.left = "18px";
+    knob.style.background = "#fff";
+    lbl.textContent = "Cap 150%: ON";
+  } else {
+    tog.style.background = "#1e2640";
+    knob.style.left = "2px";
+    knob.style.background = "var(--muted)";
+    lbl.textContent = "Cap 150%: OFF";
+  }
+  // Re-render if data is already loaded
+  if(window._lastReportData) renderReport(window._lastReportData);
+}
+
 function scoreBuilder(b, t){
-  const cap = (v,tgt) => tgt>0 ? (v/tgt)*100 : 0;
+  const cap = (v,tgt) => { const pct = tgt>0 ? (v/tgt)*100 : 0; return CAP_ENABLED ? Math.min(150,pct) : pct; };
   return Math.round(
     cap(b.calls,t.calls)*WEIGHTS.calls +
     cap(b.minutes,t.minutes)*WEIGHTS.minutes +
@@ -640,12 +669,16 @@ function scoreBuilder(b, t){
 }
 
 function scoreCloser(c, t){
-  const cap = (v,tgt) => tgt>0 ? (v/tgt)*100 : 0;
+  const cap = (v,tgt) => { const pct = tgt>0 ? (v/tgt)*100 : 0; return CAP_ENABLED ? Math.min(150,pct) : pct; };
   const kpiScore =
     cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
     cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
     cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations;
-  // 0 deals: KPI only max 110 | 1 deal: ×1.25 floor 95 cap 125 | 2+ deals: ×1.50 floor 110 cap 150
+  if(!CAP_ENABLED){
+    if(c.dealsClosed >= 2) return Math.round(Math.max(kpiScore * 1.50, 110));
+    if(c.dealsClosed === 1) return Math.round(Math.max(kpiScore * 1.25, 95));
+    return Math.round(kpiScore);
+  }
   if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(kpiScore * 1.50, 110), 150));
   if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(kpiScore * 1.25, 95), 125));
   return Math.round(Math.min(kpiScore, 110));
@@ -803,7 +836,17 @@ document.getElementById("btn-gen").onclick = async function(){
     if(!res.ok) throw new Error(data.error || "Server error");
     const fromCache = res.headers.get("X-Cache") === "HIT";
     setStatus(fromCache ? "Loaded from cache ⚡" : "Fetched from Zoho CRM");
+    window._lastReportData = { data, startDate, endDate, role, leaveMap };
+    renderReport(window._lastReportData);
+  } catch(e) {
+    setError(e.message || "Something went wrong. Please try again.");
+    setStatus("");
+  } finally {
+    btn.disabled = false; btn.textContent = "Generate Report";
+  }
+};
 
+function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
     const isCloser = role.toLowerCase().includes("closer");
     const isTL = role === "Team Leader";
     const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}).toUpperCase();
@@ -1031,14 +1074,7 @@ document.getElementById("btn-gen").onclick = async function(){
     setStatus("");
 
     // Save to sessionStorage so tab switching doesn't lose the report
-    sessionStorage.setItem("lastReport", JSON.stringify({ startDate, endDate, role, data, leaveMap }));
-
-  } catch(e) {
-    setError(e.message || "Something went wrong. Please try again.");
-    setStatus("");
-  } finally {
-    btn.disabled = false; btn.textContent = "Generate Report";
-  }
+    if(startDate && endDate && role) sessionStorage.setItem("lastReport", JSON.stringify({ startDate, endDate, role, data, leaveMap }));
 };
 
 // Restore last report if returning from another tab — called after auth succeeds
@@ -1116,6 +1152,7 @@ function buildNav(email) {
   const currentPage = window.location.pathname;
   const pages = [
     { label: "Dashboard", href: "/" },
+    ...(isAdmin ? [{ label: "BDE", href: "/bde.html" }] : []),
     ...(isAdmin ? [{ label: "Funnel", href: "/funnel.html" }] : []),
     { label: "Attendance", href: "/attendance.html" },
     ...(isAdmin ? [{ label: "Admin Panel", href: "/admin.html" }] : [])
