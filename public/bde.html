@@ -24,14 +24,14 @@
   #btn-signout{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer}
   #btn-signout:hover{border-color:var(--accent);color:var(--accent)}
 
-  .container{max-width:1200px;margin:0 auto;padding:28px 20px}
+  .container{width:100%;padding:20px 24px}
   .test-banner{background:var(--accent);color:#fff;text-align:center;font-size:12px;font-weight:800;padding:5px 12px;letter-spacing:1.5px;border-radius:6px;margin-bottom:10px}
 
   .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:24px}
   .field{display:flex;flex-direction:column;gap:4px}
   .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-  .field input{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit}
-  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 28px;font-size:14px;font-weight:800;cursor:pointer}
+  .field input{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;width:100%}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 28px;font-size:14px;font-weight:800;cursor:pointer;width:100%}
   .btn:hover{opacity:0.9}
   .btn:disabled{opacity:0.5;cursor:not-allowed}
 
@@ -49,7 +49,7 @@
   .sum-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
 
   /* BDE cards grid */
-  .bde-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+  .bde-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
   .bde-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;transition:border-color 0.2s}
   .bde-card:hover{border-color:var(--blue)}
   .bde-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
@@ -63,11 +63,11 @@
   /* Funnel steps */
   .funnel{display:flex;flex-direction:column;gap:6px}
   .funnel-row{display:flex;align-items:center;gap:8px}
-  .funnel-lbl{font-size:11px;color:var(--muted);width:110px;flex-shrink:0}
+  .funnel-lbl{font-size:11px;color:var(--muted);width:100px;flex-shrink:0}
   .funnel-bar-wrap{flex:1;background:#1e2640;border-radius:4px;height:8px;overflow:hidden}
   .funnel-bar{height:100%;border-radius:4px;transition:width 0.4s}
-  .funnel-count{font-size:12px;font-weight:700;width:32px;text-align:right;flex-shrink:0}
-  .funnel-pct{font-size:10px;color:var(--muted);width:36px;text-align:right;flex-shrink:0}
+  .funnel-count{font-size:12px;font-weight:700;width:28px;text-align:right;flex-shrink:0}
+  .funnel-pct{font-size:10px;color:var(--muted);width:34px;text-align:right;flex-shrink:0}
 
   /* Sources breakdown */
   .bde-sources{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
@@ -75,6 +75,27 @@
   .source-tags{display:flex;flex-wrap:wrap;gap:6px}
   .source-tag{font-size:11px;background:#1e2640;border:1px solid var(--border);border-radius:20px;padding:2px 10px;color:var(--text)}
   .source-tag span{color:var(--blue);font-weight:700;margin-left:4px}
+
+  /* Mobile responsive */
+  @media(max-width:768px){
+    header{padding:10px 16px;flex-wrap:wrap;gap:8px}
+    .logo-sub{display:none}
+    .nav-links{order:3;width:100%;overflow-x:auto;padding-bottom:4px}
+    #user-bar strong{display:none}
+    .container{padding:16px}
+    .summary-bar{grid-template-columns:repeat(4,1fr)}
+    .bde-grid{grid-template-columns:1fr}
+    .controls{flex-direction:column}
+    .field{width:100%}
+    .presets{gap:6px}
+    .preset-btn{padding:5px 10px;font-size:11px}
+  }
+  @media(max-width:480px){
+    .summary-bar{grid-template-columns:repeat(2,1fr)}
+    .sum-val{font-size:20px}
+    .bde-name{font-size:13px}
+    .funnel-lbl{width:80px;font-size:10px}
+  }
 
   /* Auth overlay */
   #auth-overlay{position:fixed;inset:0;z-index:9999;background:#080b14;display:flex;align-items:center;justify-content:center}
