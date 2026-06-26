@@ -268,11 +268,12 @@ function setStatus(msg) { document.getElementById("status").textContent = msg; }
 function setError(msg)  { document.getElementById("error-msg").textContent = msg; }
 
 // LinkedIn team config
-const LINKEDIN_TEAM     = ["jia","runa","kmet","bumi"];
-const LI_DAILY_TARGET   = 15;
-const LI_WORKING_DAYS   = 22;
-const LI_MONTHLY_TARGET = LI_DAILY_TARGET * LI_WORKING_DAYS; // 330
-const LI_DAILY_RATE     = LI_DAILY_TARGET; // 15/day
+const LINKEDIN_TEAM         = ["jia","runa","kmet","bumi"];
+const LI_DAILY_TARGET       = 15;   // LinkedIn ICP leads/day
+const LI_PRES_DAILY_TARGET  = 2;    // Presentation completed/day
+const LI_WORKING_DAYS       = 22;
+const LI_MONTHLY_TARGET     = LI_DAILY_TARGET * LI_WORKING_DAYS; // 330
+const LI_DAILY_RATE         = LI_DAILY_TARGET;
 
 function isLinkedInMember(name) {
   if (!name) return false;
@@ -372,6 +373,21 @@ function renderBDE(bdes, startDate, endDate) {
         </div>
         <div class="kpi-track"><div class="kpi-track-fill" style="width:${progress}%;background:${fillColor}"></div></div>
         <div class="kpi-target-sub">${progress}% · ${LI_DAILY_TARGET}/day target · ${wDays} working days${remaining > 0 ? ` · ${remaining} to go` : " · Target met! 🎯"}</div>
+      </div>`;
+
+      // Presentation Completed KPI
+      const presTarget   = Math.round(LI_PRES_DAILY_TARGET * wDays);
+      const presAchieved = b.presHeld || 0;
+      const presProgress = Math.min(100, Math.round((presAchieved / presTarget) * 100));
+      const presColor    = barColor(presProgress);
+      const presRemain   = Math.max(0, presTarget - presAchieved);
+      kpiHtml += `<div class="kpi-target" style="margin-top:10px;border-top:none;padding-top:0">
+        <div class="kpi-target-header">
+          <span class="kpi-target-label">Pres. Completed KPI <span class="linkedin-badge">LI</span></span>
+          <span class="kpi-target-nums" style="color:${presColor}">${presAchieved} / ${presTarget}</span>
+        </div>
+        <div class="kpi-track"><div class="kpi-track-fill" style="width:${presProgress}%;background:${presColor}"></div></div>
+        <div class="kpi-target-sub">${presProgress}% · ${LI_PRES_DAILY_TARGET}/day target · ${wDays} working days${presRemain > 0 ? ` · ${presRemain} to go` : " · Target met! 🎯"}</div>
       </div>`;
     }
 
