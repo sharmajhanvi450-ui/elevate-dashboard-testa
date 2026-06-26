@@ -140,25 +140,26 @@ export default async function handler(req, res) {
       return "Other";
     }
 
-    // Build BDE map
+    // Build BDE map — keyed by lowercase name to merge case variants
     const map = {};
     function getBDE(r, isDeals) { return isDeals ? r.BDE_Name : r.BDE_Name_1; }
+    function key(bde) { return bde ? bde.trim().toLowerCase() : null; }
     function getRawSource(r) { return r.Lead_Source_BDE || ""; }
     function getRawType(r)   { return r.Lead_Type || ""; }
 
     function ensure(bde) {
-      if (!bde) return;
-      if (!map[bde]) map[bde] = {
-        name: bde, generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
+      const k = key(bde); if (!k) return;
+      if (!map[k]) map[k] = {
+        name: bde.trim(), generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
         sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
         types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
         linkedInICP: 0
       };
     }
-    function inc(bde, field) { if (bde && map[bde]) map[bde][field]++; }
-    function incSub(bde, field, key) {
-      if (!bde || !map[bde]) return;
-      map[bde][field][key] = (map[bde][field][key] || 0) + 1;
+    function inc(bde, field) { const k=key(bde); if (k && map[k]) map[k][field]++; }
+    function incSub(bde, field, fkey) {
+      const k=key(bde); if (!k || !map[k]) return;
+      map[k][field][fkey] = (map[k][field][fkey] || 0) + 1;
     }
 
     function isICP(typ) { return typ.startsWith("ICP "); }
@@ -169,7 +170,7 @@ export default async function handler(req, res) {
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
-      if (b && map[b] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
+      if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
     genDeals.forEach(r => {
       const b = getBDE(r,true); ensure(b); inc(b,"generated");
@@ -177,7 +178,7 @@ export default async function handler(req, res) {
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
-      if (b && map[b] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
+      if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
     [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"touched"); });
     touchedDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"touched"); });
