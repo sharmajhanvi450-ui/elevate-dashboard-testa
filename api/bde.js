@@ -191,7 +191,20 @@ export default async function handler(req, res) {
     presHeld.forEach(r =>   { const b=getBDE(r,true); ensure(b); inc(b,"presHeld"); });
 
     const bdes = Object.values(map).sort((a,b) => b.generated - a.generated);
-    const result = { bdes, startDate, endDate };
+
+    // Referral summary — filter all fetched records by Lead_Source_BDE = Reference
+    function isRef(r) { return (r.Lead_Source_BDE||"").trim().toLowerCase() === "reference"; }
+    const referral = {
+      generated:  [...genLeads,...genContacts,...genDeals].filter(isRef).length,
+      touched:    [...touchedLeads,...touchedContacts,...touchedDeals].filter(isRef).length,
+      connected:  [...connLeads,...connContacts].filter(isRef).length,
+      qualified:  [...qualLeads,...qualContacts,...qualDeals].filter(isRef).length,
+      discovery:  [...discoLeads,...discoContacts,...discoDeals].filter(isRef).length,
+      presBooked: presBooked.filter(isRef).length,
+      presHeld:   presHeld.filter(isRef).length,
+    };
+
+    const result = { bdes, referral, startDate, endDate };
     setCached(cacheKey, result).catch(() => {});
     return res.status(200).json(result);
 

@@ -96,6 +96,16 @@
   .chip-unknown{background:#1e2640;color:#6b7499;border-color:#2e3860}
   .chip-count{opacity:0.75;margin-left:3px;font-weight:400}
 
+  /* Referral panel */
+  .referral-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:20px}
+  .referral-panel h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .referral-badge{background:#1a3320;color:#00e676;border:1px solid #1f5030;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+  .referral-funnel{display:flex;flex-wrap:wrap;gap:10px}
+  .ref-step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;flex:1}
+  .ref-val{font-size:22px;font-weight:800}
+  .ref-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;text-align:center}
+  .ref-pct{font-size:11px;font-weight:700;margin-top:1px}
+
   /* Team summary breakdown */
   .team-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
   .breakdown-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
@@ -194,6 +204,7 @@
     <div id="status"></div>
     <div id="results">
       <div class="summary-bar" id="summary-bar"></div>
+      <div id="referral-panel" style="display:none"></div>
       <div class="team-breakdown" id="team-breakdown" style="display:none"></div>
       <div class="bde-grid" id="bde-grid"></div>
     </div>
@@ -291,6 +302,32 @@ function workingDaysInRange(startStr, endStr) {
 
 function pct(a, b) { return b > 0 ? Math.round((a/b)*100) : 0; }
 function barColor(p) { return p >= 75 ? "#00e676" : p >= 40 ? "#ffab00" : "#ff4d6a"; }
+
+function renderReferral(r) {
+  const el = document.getElementById("referral-panel");
+  if (!r || !r.generated) { el.style.display="none"; return; }
+  const steps = [
+    { label:"Generated",    val:r.generated,  color:"#40c4ff" },
+    { label:"Touched",      val:r.touched,    color:"#a78bfa" },
+    { label:"Connected",    val:r.connected,  color:"#40c4ff" },
+    { label:"Qualified",    val:r.qualified,  color:"#ffd740" },
+    { label:"Discovery",    val:r.discovery,  color:"#00e676" },
+    { label:"Pres. Booked", val:r.presBooked, color:"#ff9800" },
+    { label:"Pres. Held",   val:r.presHeld,   color:"#ff4d3a" },
+  ];
+  el.innerHTML = `<div class="referral-panel">
+    <h3>Referral Leads <span class="referral-badge">REFERENCE</span></h3>
+    <div class="referral-funnel">${steps.map((s,i) => {
+      const p = i===0 ? null : pct(s.val, r.generated);
+      return `<div class="ref-step">
+        <div class="ref-val" style="color:${s.color}">${s.val}</div>
+        <div class="ref-lbl">${s.label}</div>
+        ${p !== null ? `<div class="ref-pct" style="color:${barColor(p)}">${p}%</div>` : ""}
+      </div>`;
+    }).join("")}</div>
+  </div>`;
+  el.style.display="block";
+}
 
 function renderBDE(bdes, startDate, endDate) {
   const wDays = workingDaysInRange(startDate, endDate);
@@ -437,6 +474,7 @@ document.getElementById("btn-gen").onclick = async function() {
     if(!res.ok) throw new Error(data.error||"Server error");
     const fromCache = res.headers.get("X-Cache")==="HIT";
     setStatus(fromCache ? "Loaded from cache ⚡" : "Fetched from Zoho CRM");
+    renderReferral(data.referral||null);
     renderBDE(data.bdes||[], startDate, endDate);
     document.getElementById("results").style.display="block";
   } catch(e) {
