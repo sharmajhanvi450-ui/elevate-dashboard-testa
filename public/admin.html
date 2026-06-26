@@ -311,9 +311,9 @@ function timeAgo(dateStr) {
 }
 
 function fmtTime(dateStr) {
-  return new Date(dateStr).toLocaleString("en-IN", {
-    day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true
-  });
+  return new Date(dateStr).toLocaleString("en-US", {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York"
+  }) + " EST";
 }
 
 function badgeClass(role) {
@@ -343,7 +343,7 @@ async function loadActivity() {
   document.getElementById("stat-active").textContent  = active_users.length;
   document.getElementById("stat-total").textContent   = uniqueUsers.length;
   document.getElementById("stat-reports").textContent = activity.length;
-  document.getElementById("last-updated").textContent = `Last updated ${new Date().toLocaleTimeString("en-IN", {hour:"numeric",minute:"2-digit",hour12:true})}`;
+  document.getElementById("last-updated").textContent = `Last updated ${new Date().toLocaleTimeString("en-US", {hour:"numeric",minute:"2-digit",hour12:true,timeZone:"America/New_York"})} EST`;
 
   // Active users chips
   const grid = document.getElementById("active-grid");
