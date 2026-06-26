@@ -69,6 +69,16 @@
   .funnel-count{font-size:12px;font-weight:700;width:28px;text-align:right;flex-shrink:0}
   .funnel-pct{font-size:10px;color:var(--muted);width:34px;text-align:right;flex-shrink:0}
 
+  /* KPI target bar (LinkedIn team) */
+  .kpi-target{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+  .kpi-target-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .kpi-target-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .kpi-target-nums{font-size:12px;font-weight:700}
+  .kpi-track{background:#1e2640;border-radius:6px;height:10px;overflow:hidden;margin-bottom:4px}
+  .kpi-track-fill{height:100%;border-radius:6px;transition:width 0.4s}
+  .kpi-target-sub{font-size:10px;color:var(--muted)}
+  .linkedin-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;background:#0a3a5c;color:#40c4ff;border:1px solid #1e5c8a;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;vertical-align:middle}
+
   /* Breakdown sections */
   .bde-breakdown{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:10px}
   .breakdown-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
@@ -257,10 +267,32 @@ function setPreset(type, btn) {
 function setStatus(msg) { document.getElementById("status").textContent = msg; }
 function setError(msg)  { document.getElementById("error-msg").textContent = msg; }
 
+// LinkedIn team config
+const LINKEDIN_TEAM = ["zia","roanoke","mate","bomi"];
+const LI_MONTHLY_TARGET = 100;
+const LI_WORKING_DAYS   = 22;
+const LI_DAILY_RATE     = LI_MONTHLY_TARGET / LI_WORKING_DAYS; // ~4.55
+
+function isLinkedInMember(name) {
+  if (!name) return false;
+  const first = name.trim().split(/\s+/)[0].toLowerCase();
+  return LINKEDIN_TEAM.includes(first);
+}
+
+function workingDaysInRange(startStr, endStr) {
+  let count = 0;
+  const d = new Date(startStr + "T12:00:00Z");
+  const end = new Date(endStr + "T12:00:00Z");
+  while (d <= end) { const day = d.getUTCDay(); if (day !== 0 && day !== 6) count++; d.setUTCDate(d.getUTCDate()+1); }
+  return count;
+}
+
 function pct(a, b) { return b > 0 ? Math.round((a/b)*100) : 0; }
 function barColor(p) { return p >= 75 ? "#00e676" : p >= 40 ? "#ffab00" : "#ff4d6a"; }
 
-function renderBDE(bdes) {
+function renderBDE(bdes, startDate, endDate) {
+  const wDays = workingDaysInRange(startDate, endDate);
+  const periodTarget = Math.round(LI_DAILY_RATE * wDays);
   const totals = { generated:0, touched:0, connected:0, qualified:0, discovery:0, presBooked:0, presHeld:0 };
   const teamSG = { LinkedIn:0, Portal:0, Recruiter:0, Reference:0, Other:0 };
   const teamT  = { "ICP Cold":0, "ICP Hot":0, "ICP Moderate":0, "ICP Parser":0, "Unknown":0 };
@@ -326,6 +358,22 @@ function renderBDE(bdes) {
       </div>`;
     }).join("");
 
+    let kpiHtml = "";
+    if (isLinkedInMember(b.name)) {
+      const achieved = b.generated;
+      const progress = Math.min(100, Math.round((achieved / periodTarget) * 100));
+      const fillColor = barColor(progress);
+      const remaining = Math.max(0, periodTarget - achieved);
+      kpiHtml = `<div class="kpi-target">
+        <div class="kpi-target-header">
+          <span class="kpi-target-label">LinkedIn KPI <span class="linkedin-badge">LI</span></span>
+          <span class="kpi-target-nums" style="color:${fillColor}">${achieved} / ${periodTarget}</span>
+        </div>
+        <div class="kpi-track"><div class="kpi-track-fill" style="width:${progress}%;background:${fillColor}"></div></div>
+        <div class="kpi-target-sub">${progress}% of period target (${wDays} working days)${remaining > 0 ? ` · ${remaining} to go` : " · Target met!"}</div>
+      </div>`;
+    }
+
     const sgMap = { LinkedIn:"chip-linkedin", Portal:"chip-portal", Recruiter:"chip-recruiter", Reference:"chip-reference", Other:"chip-other" };
     const tMap  = { "ICP Cold":"chip-cold","ICP Hot":"chip-hot","ICP Moderate":"chip-moderate","ICP Parser":"chip-parser","Unknown":"chip-unknown" };
     const sgChips = Object.entries(b.sourceGroups||{}).filter(([,v])=>v>0).sort((a,bb)=>bb[1]-a[1])
@@ -351,6 +399,7 @@ function renderBDE(bdes) {
         </div>
       </div>
       <div class="funnel">${funnelHtml}</div>
+      ${kpiHtml}
       ${breakdownHtml}
     </div>`;
   }).join("");
@@ -371,7 +420,7 @@ document.getElementById("btn-gen").onclick = async function() {
     if(!res.ok) throw new Error(data.error||"Server error");
     const fromCache = res.headers.get("X-Cache")==="HIT";
     setStatus(fromCache ? "Loaded from cache ⚡" : "Fetched from Zoho CRM");
-    renderBDE(data.bdes||[]);
+    renderBDE(data.bdes||[], startDate, endDate);
     document.getElementById("results").style.display="block";
   } catch(e) {
     setError(e.message||"Something went wrong.");
