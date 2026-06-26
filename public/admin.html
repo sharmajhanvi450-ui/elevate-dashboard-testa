@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ElevateMe — Admin Panel</title>
+<title>ElevateMe â€” Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -172,7 +172,7 @@
   <div class="auth-card">
     <div class="auth-logo">Elevate<span>Me</span></div>
     <div class="auth-sub">Admin Panel</div>
-    <div class="auth-admin-note">⚡ Restricted to admin accounts only</div>
+    <div class="auth-admin-note">âš¡ Restricted to admin accounts only</div>
     <button class="auth-google-btn" id="btn-google-signin">
       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
       Sign in with Google
@@ -212,15 +212,15 @@
   <div class="tab-pane active" id="tab-activity">
     <div class="stats-row">
       <div class="stat-card stat-active">
-        <div class="stat-val" id="stat-active">—</div>
+        <div class="stat-val" id="stat-active">â€”</div>
         <div class="stat-lbl">Active now (last 30 min)</div>
       </div>
       <div class="stat-card stat-total">
-        <div class="stat-val" id="stat-total">—</div>
+        <div class="stat-val" id="stat-total">â€”</div>
         <div class="stat-lbl">Total unique users</div>
       </div>
       <div class="stat-card">
-        <div class="stat-val" id="stat-reports">—</div>
+        <div class="stat-val" id="stat-reports">â€”</div>
         <div class="stat-lbl">Reports generated (all time)</div>
       </div>
     </div>
@@ -230,7 +230,7 @@
 
     <div style="display:flex;align-items:center;margin-bottom:12px">
       <div class="section-title" style="margin-bottom:0">Activity Log</div>
-      <button class="refresh-btn" id="btn-refresh">↻ Refresh</button>
+      <button class="refresh-btn" id="btn-refresh">â†» Refresh</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -252,26 +252,26 @@
   <div class="tab-pane" id="tab-api">
     <div class="api-stats">
       <div class="api-stat">
-        <div class="val zoho-val" id="api-zoho-today">—</div>
+        <div class="val zoho-val" id="api-zoho-today">â€”</div>
         <div class="lbl">Zoho API calls today</div>
       </div>
       <div class="api-stat">
-        <div class="val cache-val" id="api-cache-today">—</div>
+        <div class="val cache-val" id="api-cache-today">â€”</div>
         <div class="lbl">Cache hits today</div>
       </div>
       <div class="api-stat">
-        <div class="val rate-val" id="api-hit-rate">—</div>
+        <div class="val rate-val" id="api-hit-rate">â€”</div>
         <div class="lbl">Cache hit rate</div>
       </div>
       <div class="api-stat">
-        <div class="val cron-val" id="api-cron-today">—</div>
+        <div class="val cron-val" id="api-cron-today">â€”</div>
         <div class="lbl">Cron runs today</div>
       </div>
     </div>
 
     <div style="display:flex;align-items:center;margin-bottom:12px">
       <div class="section-title" style="margin-bottom:0">API Request Log</div>
-      <button class="refresh-btn" id="btn-refresh-api">↻ Refresh</button>
+      <button class="refresh-btn" id="btn-refresh-api">â†» Refresh</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -369,10 +369,10 @@ async function loadActivity() {
   } else {
     tbody.innerHTML = activity.map(a => `
       <tr>
-        <td><div class="user-cell">${avatarHtml(a, 28)}<span>${a.full_name || "—"}</span></div></td>
+        <td><div class="user-cell">${avatarHtml(a, 28)}<span>${a.full_name || "â€”"}</span></div></td>
         <td style="color:var(--muted)">${a.email}</td>
-        <td>${a.role ? `<span class="${badgeClass(a.role)}">${a.role}</span>` : "—"}</td>
-        <td style="font-size:12px;color:var(--muted)">${a.date_range || "—"}</td>
+        <td>${a.role ? `<span class="${badgeClass(a.role)}">${a.role}</span>` : "â€”"}</td>
+        <td style="font-size:12px;color:var(--muted)">${a.date_range || "â€”"}</td>
         <td class="time-cell">${fmtTime(a.created_at)}</td>
       </tr>
     `).join("");
@@ -422,10 +422,10 @@ async function loadApiLogs() {
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td><span class="type-badge ${typeCls[r.type] || ''}">${typeLabel[r.type] || r.type}</span></td>
-        <td>${r.role ? `<span class="${badgeClass(r.role)}">${r.role}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.date_range || "—"}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.triggered_by || "—"}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.duration_ms != null ? r.duration_ms + " ms" : "—"}</td>
+        <td>${r.role ? `<span class="${badgeClass(r.role)}">${r.role}</span>` : '<span style="color:var(--muted)">â€”</span>'}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.date_range || "â€”"}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.triggered_by || "â€”"}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.duration_ms != null ? r.duration_ms + " ms" : "â€”"}</td>
         <td class="time-cell">${fmtTime(r.created_at)}</td>
       </tr>
     `).join("");
@@ -486,7 +486,7 @@ document.getElementById("btn-google-signin").onclick = async () => {
   document.getElementById("auth-error").textContent = "";
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: "https://elevate-dashboard-iota.vercel.app/admin.html" }
+    options: { redirectTo: "https://elevate-dashboard-testa.vercel.app/admin.html" }
   });
   if (error) document.getElementById("auth-error").textContent = error.message;
 };
@@ -505,3 +505,4 @@ setInterval(() => loadActivity(), 60000);
 </script>
 </body>
 </html>
+

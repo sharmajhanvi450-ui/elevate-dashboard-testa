@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ElevateMe — Attendance</title>
+<title>ElevateMe â€” Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -259,7 +259,7 @@ function renderTeams() {
               </div>
               <button class="toggle-btn ${isLeave ? 'leave' : 'present'}"
                 onclick="toggleStatus('${m.name}')"
-              >${isLeave ? '✗ On Leave' : '✓ Present'}</button>
+              >${isLeave ? 'âœ— On Leave' : 'âœ“ Present'}</button>
             </div>`;
         }).join("")}
       </div>`;
@@ -351,7 +351,7 @@ document.getElementById("btn-google-signin").onclick = async () => {
   document.getElementById("auth-error").textContent = "";
   const { error } = await _supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: "https://elevate-dashboard-iota.vercel.app/attendance.html" }
+    options: { redirectTo: "https://elevate-dashboard-testa.vercel.app/attendance.html" }
   });
   if (error) document.getElementById("auth-error").textContent = error.message;
 };
@@ -390,3 +390,4 @@ document.getElementById("btn-save").onclick = async () => {
 </script>
 </body>
 </html>
+
