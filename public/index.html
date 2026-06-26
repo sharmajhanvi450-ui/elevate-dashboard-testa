@@ -341,6 +341,7 @@
     <div class="auth-domain-note">Access restricted to approved accounts</div>
   </div>
 </div>
+<div style="background:#ff4d3a;color:#fff;text-align:center;font-size:13px;font-weight:800;padding:6px;letter-spacing:2px;">⚠ TEST VERSION — Changes here will not affect the live dashboard</div>
 <div class="container">
   <header>
     <div class="logo">
@@ -568,7 +569,7 @@ const ZONE_COLOR = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"
 
 function kpiCell(actual, target, weight){
   const raw = target > 0 ? (actual / target) * 100 : 0;
-  const capped = Math.min(150, raw);
+  const capped = raw;
   const contrib = (capped * weight).toFixed(1);
   const pctColor = capped >= 100 ? "#00e676" : capped >= 75 ? "#ffab00" : "#ff4d6a";
   const barW = Math.min(100, (capped / 150) * 100).toFixed(0);
@@ -627,7 +628,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
 }
 
 function scoreBuilder(b, t){
-  const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
+  const cap = (v,tgt) => tgt>0 ? (v/tgt)*100 : 0;
   return Math.round(
     cap(b.calls,t.calls)*WEIGHTS.calls +
     cap(b.minutes,t.minutes)*WEIGHTS.minutes +
@@ -639,7 +640,7 @@ function scoreBuilder(b, t){
 }
 
 function scoreCloser(c, t){
-  const cap = (v,tgt) => Math.min(150, tgt>0 ? (v/tgt)*100 : 0);
+  const cap = (v,tgt) => tgt>0 ? (v/tgt)*100 : 0;
   const kpiScore =
     cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
     cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
