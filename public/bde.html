@@ -69,12 +69,28 @@
   .funnel-count{font-size:12px;font-weight:700;width:28px;text-align:right;flex-shrink:0}
   .funnel-pct{font-size:10px;color:var(--muted);width:34px;text-align:right;flex-shrink:0}
 
-  /* Sources breakdown */
-  .bde-sources{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
-  .sources-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-  .source-tags{display:flex;flex-wrap:wrap;gap:6px}
-  .source-tag{font-size:11px;background:#1e2640;border:1px solid var(--border);border-radius:20px;padding:2px 10px;color:var(--text)}
-  .source-tag span{color:var(--blue);font-weight:700;margin-left:4px}
+  /* Breakdown sections */
+  .bde-breakdown{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:10px}
+  .breakdown-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .chip-row{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:11px;border-radius:20px;padding:3px 10px;font-weight:700;border:1px solid transparent}
+  .chip-linkedin{background:#0a3a5c;color:#40c4ff;border-color:#1e5c8a}
+  .chip-portal{background:#2a2040;color:#a78bfa;border-color:#3d2e70}
+  .chip-recruiter{background:#1a3320;color:#00e676;border-color:#1f5030}
+  .chip-reference{background:#2a2010;color:#ffd740;border-color:#4a3c10}
+  .chip-other{background:#1e2640;color:#6b7499;border-color:#2e3860}
+  .chip-cold{background:#0a2040;color:#40c4ff;border-color:#1a4070}
+  .chip-hot{background:#3a1010;color:#ff4d3a;border-color:#6a2020}
+  .chip-moderate{background:#2a1a00;color:#ffab00;border-color:#5a3800}
+  .chip-parser{background:#1a2a10;color:#00e676;border-color:#2a4a20}
+  .chip-unknown{background:#1e2640;color:#6b7499;border-color:#2e3860}
+  .chip-count{opacity:0.75;margin-left:3px;font-weight:400}
+
+  /* Team summary breakdown */
+  .team-breakdown{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+  .breakdown-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .breakdown-card h4{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+  @media(max-width:600px){.team-breakdown{grid-template-columns:1fr}}
 
   /* Mobile responsive */
   @media(max-width:768px){
@@ -168,6 +184,7 @@
     <div id="status"></div>
     <div id="results">
       <div class="summary-bar" id="summary-bar"></div>
+      <div class="team-breakdown" id="team-breakdown" style="display:none"></div>
       <div class="bde-grid" id="bde-grid"></div>
     </div>
   </div>
@@ -245,7 +262,28 @@ function barColor(p) { return p >= 75 ? "#00e676" : p >= 40 ? "#ffab00" : "#ff4d
 
 function renderBDE(bdes) {
   const totals = { generated:0, touched:0, connected:0, qualified:0, discovery:0, presBooked:0, presHeld:0 };
-  bdes.forEach(b => { Object.keys(totals).forEach(k => totals[k] += b[k]||0); });
+  const teamSG = { LinkedIn:0, Portal:0, Recruiter:0, Reference:0, Other:0 };
+  const teamT  = { "ICP Cold":0, "ICP Hot":0, "ICP Moderate":0, "ICP Parser":0, "Unknown":0 };
+  bdes.forEach(b => {
+    Object.keys(totals).forEach(k => totals[k] += b[k]||0);
+    Object.keys(teamSG).forEach(k => teamSG[k] += (b.sourceGroups||{})[k]||0);
+    Object.keys(teamT).forEach(k  => teamT[k]  += (b.types||{})[k]||0);
+  });
+  const sgMap2 = { LinkedIn:"chip-linkedin", Portal:"chip-portal", Recruiter:"chip-recruiter", Reference:"chip-reference", Other:"chip-other" };
+  const tMap2  = { "ICP Cold":"chip-cold","ICP Hot":"chip-hot","ICP Moderate":"chip-moderate","ICP Parser":"chip-parser","Unknown":"chip-unknown" };
+  const teamBreakdownEl = document.getElementById("team-breakdown");
+  if (bdes.length) {
+    const sgRow = Object.entries(teamSG).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      .map(([s,c])=>`<div class="chip ${sgMap2[s]||'chip-other'}">${s}<span class="chip-count">${c}</span></div>`).join("");
+    const tRow  = Object.entries(teamT).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])
+      .map(([t,c])=>`<div class="chip ${tMap2[t]||'chip-unknown'}">${t}<span class="chip-count">${c}</span></div>`).join("");
+    teamBreakdownEl.innerHTML = `
+      <div class="breakdown-card"><h4>Team — By Source</h4><div class="chip-row">${sgRow||"—"}</div></div>
+      <div class="breakdown-card"><h4>Team — By Lead Type</h4><div class="chip-row">${tRow||"—"}</div></div>`;
+    teamBreakdownEl.style.display = "grid";
+  } else {
+    teamBreakdownEl.style.display = "none";
+  }
 
   document.getElementById("summary-bar").innerHTML = [
     ["Generated", totals.generated, "#40c4ff"],
@@ -288,11 +326,16 @@ function renderBDE(bdes) {
       </div>`;
     }).join("");
 
-    const topSources = Object.entries(b.sources||{}).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const sourcesHtml = topSources.length ? `
-      <div class="bde-sources">
-        <div class="sources-title">Lead Sources</div>
-        <div class="source-tags">${topSources.map(([s,c])=>`<div class="source-tag">${s}<span>${c}</span></div>`).join("")}</div>
+    const sgMap = { LinkedIn:"chip-linkedin", Portal:"chip-portal", Recruiter:"chip-recruiter", Reference:"chip-reference", Other:"chip-other" };
+    const tMap  = { "ICP Cold":"chip-cold","ICP Hot":"chip-hot","ICP Moderate":"chip-moderate","ICP Parser":"chip-parser","Unknown":"chip-unknown" };
+    const sgChips = Object.entries(b.sourceGroups||{}).filter(([,v])=>v>0).sort((a,bb)=>bb[1]-a[1])
+      .map(([s,c])=>`<div class="chip ${sgMap[s]||'chip-other'}">${s}<span class="chip-count">${c}</span></div>`).join("");
+    const tChips = Object.entries(b.types||{}).filter(([,v])=>v>0).sort((a,bb)=>bb[1]-a[1])
+      .map(([t,c])=>`<div class="chip ${tMap[t]||'chip-unknown'}">${t}<span class="chip-count">${c}</span></div>`).join("");
+    const breakdownHtml = (sgChips||tChips) ? `
+      <div class="bde-breakdown">
+        ${sgChips?`<div><div class="breakdown-title">By Source</div><div class="chip-row">${sgChips}</div></div>`:""}
+        ${tChips ?`<div><div class="breakdown-title">By Type</div><div class="chip-row">${tChips}</div></div>`:""}
       </div>` : "";
 
     return `<div class="bde-card">
@@ -308,7 +351,7 @@ function renderBDE(bdes) {
         </div>
       </div>
       <div class="funnel">${funnelHtml}</div>
-      ${sourcesHtml}
+      ${breakdownHtml}
     </div>`;
   }).join("");
 }

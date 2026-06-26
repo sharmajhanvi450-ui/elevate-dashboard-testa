@@ -118,15 +118,41 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Presentation_Completed_Date"),
     ]);
 
+    // Normalize lead type
+    function normalizeType(t) {
+      if (!t) return "Unknown";
+      const s = t.trim().toLowerCase().replace(/[\s-]+/g,"");
+      if (s === "icpcold")     return "ICP Cold";
+      if (s === "icphot")      return "ICP Hot";
+      if (s === "icpmoderate") return "ICP Moderate";
+      if (s === "icpparser")   return "ICP Parser";
+      return t.trim();
+    }
+
+    // Normalize lead source into groups
+    function normalizeSource(s) {
+      if (!s) return "Other";
+      const v = s.trim().toLowerCase();
+      if (v.includes("linkedin")) return "LinkedIn";
+      if (["opt nation","opt resume","career builder","indeed","monster","handshake","resume library","workable","leonar","ulinc"].includes(v)) return "Portal";
+      if (v === "recruiter") return "Recruiter";
+      if (v === "reference") return "Reference";
+      return "Other";
+    }
+
     // Build BDE map
     const map = {};
     function getBDE(r, isDeals) { return isDeals ? r.BDE_Name : r.BDE_Name_1; }
-    function getSource(r) { return r.Lead_Source_BDE || "Unknown"; }
-    function getType(r) { return r.Lead_Type || "Unknown"; }
+    function getRawSource(r) { return r.Lead_Source_BDE || ""; }
+    function getRawType(r)   { return r.Lead_Type || ""; }
 
     function ensure(bde) {
       if (!bde) return;
-      if (!map[bde]) map[bde] = { name: bde, generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0, sources: {}, types: {} };
+      if (!map[bde]) map[bde] = {
+        name: bde, generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
+        sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
+        types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 }
+      };
     }
     function inc(bde, field) { if (bde && map[bde]) map[bde][field]++; }
     function incSub(bde, field, key) {
@@ -134,8 +160,20 @@ export default async function handler(req, res) {
       map[bde][field][key] = (map[bde][field][key] || 0) + 1;
     }
 
-    [...genLeads, ...genContacts].forEach(r => { const b = getBDE(r,false); ensure(b); inc(b,"generated"); incSub(b,"sources",getSource(r)); incSub(b,"types",getType(r)); });
-    genDeals.forEach(r => { const b = getBDE(r,true); ensure(b); inc(b,"generated"); incSub(b,"sources",getSource(r)); incSub(b,"types",getType(r)); });
+    [...genLeads, ...genContacts].forEach(r => {
+      const b = getBDE(r,false); ensure(b); inc(b,"generated");
+      const src = getRawSource(r); const typ = normalizeType(getRawType(r));
+      incSub(b,"sources", src||"Unknown");
+      incSub(b,"sourceGroups", normalizeSource(src));
+      incSub(b,"types", typ);
+    });
+    genDeals.forEach(r => {
+      const b = getBDE(r,true); ensure(b); inc(b,"generated");
+      const src = getRawSource(r); const typ = normalizeType(getRawType(r));
+      incSub(b,"sources", src||"Unknown");
+      incSub(b,"sourceGroups", normalizeSource(src));
+      incSub(b,"types", typ);
+    });
     [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"touched"); });
     touchedDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"touched"); });
     [...connLeads,...connContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"connected"); });
@@ -144,7 +182,7 @@ export default async function handler(req, res) {
     [...discoLeads,...discoContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"discovery"); });
     discoDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"discovery"); });
     presBooked.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"presBooked"); });
-    presHeld.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"presHeld"); });
+    presHeld.forEach(r =>   { const b=getBDE(r,true); ensure(b); inc(b,"presHeld"); });
 
     const bdes = Object.values(map).sort((a,b) => b.generated - a.generated);
     const result = { bdes, startDate, endDate };
