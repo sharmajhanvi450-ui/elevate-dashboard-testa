@@ -169,7 +169,7 @@ export default async function handler(req, res) {
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
-      if (normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
+      if (b && map[b] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
     });
     genDeals.forEach(r => {
       const b = getBDE(r,true); ensure(b); inc(b,"generated");
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
-      if (normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
+      if (b && map[b] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
     });
     [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"touched"); });
     touchedDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"touched"); });
