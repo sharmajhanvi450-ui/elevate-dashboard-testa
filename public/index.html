@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ElevateMe â€” Performance Dashboard</title>
+<title>ElevateMe — Performance Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -88,8 +88,8 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
     position: relative;
   }
-  .on-leave-stamp::before { content: "âœ¦"; font-size: 10px; color: rgba(160,160,255,0.3); position: absolute; top: 22px; left: 30px; }
-  .on-leave-stamp::after  { content: "â˜…"; font-size: 9px; color: rgba(160,160,255,0.25); position: absolute; bottom: 18px; }
+  .on-leave-stamp::before { content: "✦"; font-size: 10px; color: rgba(160,160,255,0.3); position: absolute; top: 22px; left: 30px; }
+  .on-leave-stamp::after  { content: "★"; font-size: 9px; color: rgba(160,160,255,0.25); position: absolute; bottom: 18px; }
   .stamp-icon { font-size: 22px; opacity: 0.25; margin-bottom: 2px; }
   .stamp-text {
     font-size: 15px; font-weight: 900; letter-spacing: 2.5px; color: rgba(160,160,255,0.35);
@@ -274,7 +274,7 @@
   .preset-btn:hover { border-color: var(--accent); color: var(--text); }
   .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,77,58,0.1); }
 
-  /* â”€â”€ Auth overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Auth overlay ─────────────────────────────────────────────────────────── */
   #auth-overlay {
     position: fixed; inset: 0; z-index: 9999;
     background: #080b14;
@@ -299,7 +299,7 @@
   .auth-error { margin-top: 16px; font-size: 13px; color: #ff4d6a; min-height: 20px; }
   .auth-domain-note { margin-top: 24px; font-size: 11px; color: #3a3f5c; }
 
-  /* â”€â”€ Nav links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Nav links ────────────────────────────────────────────────────────────── */
   .nav-links { display: flex; gap: 8px; margin-right: 16px; }
   .nav-btn {
     padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
@@ -309,7 +309,7 @@
   .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
   .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-  /* â”€â”€ User bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── User bar ─────────────────────────────────────────────────────────────── */
   #user-bar {
     display: none; align-items: center; gap: 10px;
     font-size: 13px; color: #6b7499;
@@ -385,7 +385,7 @@
     </div>
     <div class="field" style="display:flex;align-items:flex-end;gap:8px">
       <button class="btn" id="btn-gen" style="flex:1">Generate Report</button>
-      <button class="btn" id="btn-force-refresh" title="Force refresh cache from Zoho" style="display:none;background:#1e2640;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 14px;flex-shrink:0">â†» Force</button>
+      <button class="btn" id="btn-force-refresh" title="Force refresh cache from Zoho" style="display:none;background:#1e2640;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 14px;flex-shrink:0">↻ Force</button>
     </div>
   </div>
 
@@ -402,7 +402,7 @@
       <div class="closer-rules-title">How Closer Scores Work</div>
       <div class="closer-rules-grid">
         <div class="cr-section">
-          <div class="cr-section-title">ðŸ“Š KPI Weights</div>
+          <div class="cr-section-title">📊 KPI Weights</div>
           <div class="cr-row"><span class="cr-kpi">Follow-up Calls</span><span><span class="cr-detail">target 60 &nbsp;</span><span class="cr-weight" style="color:#ff6b6b">40%</span></span></div>
           <div class="cr-row"><span class="cr-kpi">Call Minutes</span><span><span class="cr-detail">target 120 min &nbsp;</span><span class="cr-weight" style="color:#ffab00">20%</span></span></div>
           <div class="cr-row"><span class="cr-kpi">Presentations Held</span><span><span class="cr-detail">target 2 &nbsp;</span><span class="cr-weight" style="color:#40c4ff">40%</span></span></div>
@@ -411,18 +411,18 @@
           </div>
         </div>
         <div class="cr-section">
-          <div class="cr-section-title">âš¡ Deal Multiplier</div>
+          <div class="cr-section-title">⚡ Deal Multiplier</div>
           <div class="override-row">
             <span class="override-badge" style="color:#ffd740;border-color:#ffd740">2+ Deals</span>
-            <span class="override-desc">KPI Ã— <strong style="color:#ffd740">1.50</strong> â€” min <strong style="color:#ffd740">110%</strong> â†’ guaranteed <strong style="color:#ffd740">Gold Card</strong> â€” max 150%</span>
+            <span class="override-desc">KPI × <strong style="color:#ffd740">1.50</strong> — min <strong style="color:#ffd740">110%</strong> → guaranteed <strong style="color:#ffd740">Gold Card</strong> — max 150%</span>
           </div>
           <div class="override-row">
             <span class="override-badge" style="color:#00e676;border-color:#00e676">1 Deal</span>
-            <span class="override-desc">KPI Ã— <strong style="color:#00e676">1.25</strong> â€” min <strong style="color:#00e676">95%</strong> â†’ guaranteed <strong style="color:#00e676">Green Card</strong> â€” max 125%</span>
+            <span class="override-desc">KPI × <strong style="color:#00e676">1.25</strong> — min <strong style="color:#00e676">95%</strong> → guaranteed <strong style="color:#00e676">Green Card</strong> — max 125%</span>
           </div>
           <div class="override-row">
             <span class="override-badge" style="color:#6b7499;border-color:#6b7499">0 Deals</span>
-            <span class="override-desc">KPI score only â€” max <strong style="color:#6b7499">110%</strong> â€” Gold Card achievable through overachievement</span>
+            <span class="override-desc">KPI score only — max <strong style="color:#6b7499">110%</strong> — Gold Card achievable through overachievement</span>
           </div>
         </div>
       </div>
@@ -432,10 +432,10 @@
       <div class="closer-rules-title">How Team Leader Scores Work</div>
       <div class="closer-rules-grid">
         <div class="cr-section">
-          <div class="cr-section-title">ðŸ“Š Team Health Score</div>
-          <div class="cr-row"><span class="cr-kpi">Formula</span><span class="cr-detail">Sum of active member scores Ã· active member count</span></span></div>
+          <div class="cr-section-title">📊 Team Health Score</div>
+          <div class="cr-row"><span class="cr-kpi">Formula</span><span class="cr-detail">Sum of active member scores ÷ active member count</span></span></div>
           <div class="cr-row"><span class="cr-kpi">Active member</span><span class="cr-detail">Anyone with at least 1 call logged</span></span></div>
-          <div class="cr-row"><span class="cr-kpi">On Leave</span><span class="cr-detail">0 calls â€” excluded from health score</span></div>
+          <div class="cr-row"><span class="cr-kpi">On Leave</span><span class="cr-detail">0 calls — excluded from health score</span></div>
           <div class="cr-row" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">
             <span class="cr-detail">Each member scored against their own role (Builder or Closer) KPIs + deal override rules apply to Closers</span>
           </div>
@@ -450,7 +450,7 @@
 
     <div class="breakdown-wrap">
       <div class="breakdown-toggle" id="breakdown-toggle" onclick="toggleBreakdown()">
-        <span class="chevron">â–¶</span> Individual Performance Breakdown
+        <span class="chevron">▶</span> Individual Performance Breakdown
       </div>
       <div class="breakdown-table-wrap" id="breakdown-table-wrap">
         <table class="breakdown-table" id="breakdown-table"></table>
@@ -463,9 +463,9 @@
     <div class="bottom">
       <div class="legend">
         <span><div class="dot" style="background:#ffd740;box-shadow:0 0 6px #ffd740"></div> Gold 110%+</span>
-        <span><div class="dot" style="background:#00e676;box-shadow:0 0 6px #00e676"></div> Green 95â€“110%</span>
-        <span><div class="dot" style="background:#ffab00;box-shadow:0 0 6px #ffab00"></div> Yellow 75â€“95%</span>
-        <span><div class="dot" style="background:#ff6d00;box-shadow:0 0 6px #ff6d00"></div> Orange 50â€“75%</span>
+        <span><div class="dot" style="background:#00e676;box-shadow:0 0 6px #00e676"></div> Green 95–110%</span>
+        <span><div class="dot" style="background:#ffab00;box-shadow:0 0 6px #ffab00"></div> Yellow 75–95%</span>
+        <span><div class="dot" style="background:#ff6d00;box-shadow:0 0 6px #ff6d00"></div> Orange 50–75%</span>
         <span><div class="dot" style="background:#ff1744;box-shadow:0 0 6px #ff1744"></div> Red &lt;50%</span>
       </div>
     </div>
@@ -473,7 +473,7 @@
 </div>
 
 <script>
-const DISPLAY = "10:30 AM â€“ 7:30 PM EST";
+const DISPLAY = "10:30 AM – 7:30 PM EST";
 
 function estToday() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -485,7 +485,7 @@ function estDateOffset(days) {
 }
 function estMonday(offset = 0) {
   const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const day = d.getDay() || 7; // Mon=1 â€¦ Sun=7
+  const day = d.getDay() || 7; // Mon=1 … Sun=7
   d.setDate(d.getDate() - (day - 1) + offset * 7);
   return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
@@ -511,7 +511,7 @@ function setPreset(preset, btn) {
   fields[1].style.display = isCustom ? "" : "none";
 
   const nowEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const dow = nowEST.getDay() || 7; // 1=Mon â€¦ 7=Sun
+  const dow = nowEST.getDay() || 7; // 1=Mon … 7=Sun
 
   const fmt = d => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
@@ -588,7 +588,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
   const head = `<thead><tr>
     <th>#</th>
     <th style="text-align:left">Name</th>
-    ${kpis.map(k=>`<th>${k.label}<br><span style="font-size:10px;opacity:0.5">${Math.round(k.weight*100)}% weight Â· target ${k.target}</span></th>`).join("")}
+    ${kpis.map(k=>`<th>${k.label}<br><span style="font-size:10px;opacity:0.5">${Math.round(k.weight*100)}% weight · target ${k.target}</span></th>`).join("")}
     <th>Score</th>
   </tr></thead>`;
 
@@ -598,15 +598,15 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
     const rank = i + 1;
     const rankClass = rank === 1 ? "r1" : rank === 2 ? "r2" : rank === 3 ? "r3" : "";
     const dealOverride = !onLeave && p.dealsClosed >= 1;
-    const overrideLabel = p.dealsClosed >= 2 ? "ðŸ† Gold Override" : p.dealsClosed === 1 ? "âœ… Green Override" : "";
+    const overrideLabel = p.dealsClosed >= 2 ? "🏆 Gold Override" : p.dealsClosed === 1 ? "✅ Green Override" : "";
     return `<tr>
-      <td><div class="bt-rank ${rankClass}">${onLeave ? "â€”" : rank}</div></td>
+      <td><div class="bt-rank ${rankClass}">${onLeave ? "—" : rank}</div></td>
       <td>
         <div class="bt-name" style="color:${scoreColor}">${p.name}</div>
         ${p.teamLead ? `<div class="bt-tl">${p.teamLead}</div>` : ""}
       </td>
       ${onLeave
-        ? kpis.map(() => `<td style="color:#2e2e3a;font-size:12px">â€”</td>`).join("")
+        ? kpis.map(() => `<td style="color:#2e2e3a;font-size:12px">—</td>`).join("")
         : kpis.map(k => k.override
             ? `<td><div class="bt-kpi">
                 <div class="bt-val" style="color:${p.dealsClosed>=2?"#ffd740":p.dealsClosed>=1?"#00e676":"#ff4d6a"}">${p.dealsClosed}</div>
@@ -617,7 +617,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
           ).join("")
       }
       <td>
-        <div class="bt-score" style="color:${scoreColor};text-shadow:0 0 10px ${scoreColor}">${onLeave ? "â€”" : p.composite+"%"}</div>
+        <div class="bt-score" style="color:${scoreColor};text-shadow:0 0 10px ${scoreColor}">${onLeave ? "—" : p.composite+"%"}</div>
         ${!onLeave ? `<div class="bt-contrib" style="color:${scoreColor};opacity:0.7">${dealOverride ? overrideLabel : p.zone+" card"}</div>` : `<div class="bt-contrib">On Leave</div>`}
       </td>
     </tr>`;
@@ -644,7 +644,7 @@ function scoreCloser(c, t){
     cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls +
     cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
     cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations;
-  // 0 deals: KPI only max 110 | 1 deal: Ã—1.25 floor 95 cap 125 | 2+ deals: Ã—1.50 floor 110 cap 150
+  // 0 deals: KPI only max 110 | 1 deal: ×1.25 floor 95 cap 125 | 2+ deals: ×1.50 floor 110 cap 150
   if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(kpiScore * 1.50, 110), 150));
   if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(kpiScore * 1.25, 95), 125));
   return Math.round(Math.min(kpiScore, 110));
@@ -801,26 +801,26 @@ document.getElementById("btn-gen").onclick = async function(){
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || "Server error");
     const fromCache = res.headers.get("X-Cache") === "HIT";
-    setStatus(fromCache ? "Loaded from cache âš¡" : "Fetched from Zoho CRM");
+    setStatus(fromCache ? "Loaded from cache ⚡" : "Fetched from Zoho CRM");
 
     const isCloser = role.toLowerCase().includes("closer");
     const isTL = role === "Team Leader";
     const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}).toUpperCase();
-    const dl = startDate === endDate ? fmtDate(startDate) : `${fmtDate(startDate)} â€“ ${fmtDate(endDate)}`;
+    const dl = startDate === endDate ? fmtDate(startDate) : `${fmtDate(startDate)} – ${fmtDate(endDate)}`;
 
-    // â”€â”€ Time-based target proration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Work window: 9:00 AM â€“ 8:00 PM EST = 11 hours
+    // ── Time-based target proration ───────────────────────────────────────────
+    // Work window: 9:00 AM – 8:00 PM EST = 11 hours
     const WORK_START_H = 10.5, WORK_END_H = 19.5, WORK_HOURS = 9.0;
 
     function getDayFraction(dateStr) {
       const todayEST = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-      if (dateStr < todayEST) return 1;          // past date â†’ full day
-      if (dateStr > todayEST) return 1;          // future date â†’ full day (shouldn't happen)
-      // It's today â€” calculate elapsed fraction in EST
+      if (dateStr < todayEST) return 1;          // past date → full day
+      if (dateStr > todayEST) return 1;          // future date → full day (shouldn't happen)
+      // It's today — calculate elapsed fraction in EST
       const nowEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
       const hDecimal = nowEST.getHours() + nowEST.getMinutes() / 60;
-      if (hDecimal <= WORK_START_H) return 0.01; // before 9AM â€” near zero
-      if (hDecimal >= WORK_END_H)   return 1;    // after 8PM  â€” full day
+      if (hDecimal <= WORK_START_H) return 0.01; // before 9AM — near zero
+      if (hDecimal >= WORK_END_H)   return 1;    // after 8PM  — full day
       return (hDecimal - WORK_START_H) / WORK_HOURS;
     }
 
@@ -854,10 +854,10 @@ document.getElementById("btn-gen").onclick = async function(){
     const isLive = endDate === todayEST;
     const pct = Math.round(getDayFraction(endDate) * 100);
     const timeLabel = isLive
-      ? `Pulled at ${nowEST} EST Â· ${pct}% of workday`
-      : `Full day Â· 100%`;
+      ? `Pulled at ${nowEST} EST · ${pct}% of workday`
+      : `Full day · 100%`;
     const CARD_LABELS = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
-    const ON_LEAVE_BADGE = `<div class="card-badge on-leave-badge">ðŸ– On Leave</div>`;
+    const ON_LEAVE_BADGE = `<div class="card-badge on-leave-badge">🏖 On Leave</div>`;
 
     function avatarHtml(name) {
       const slug = name.toLowerCase().replace(/\s+/g, "-");
@@ -868,7 +868,7 @@ document.getElementById("btn-gen").onclick = async function(){
     }
 
     document.getElementById("meta-left").innerHTML =
-      `${dl} &nbsp;Â·&nbsp; ${DISPLAY} &nbsp;<span style="color:${isLive?"#ffab00":"var(--muted)"}">Â· ${timeLabel}</span>`;
+      `${dl} &nbsp;·&nbsp; ${DISPLAY} &nbsp;<span style="color:${isLive?"#ffab00":"var(--muted)"}">· ${timeLabel}</span>`;
     document.getElementById("closer-rules").className = "closer-rules" + (isCloser ? " show" : "");
     document.getElementById("tl-rules").className = "closer-rules" + (isTL ? " show" : "");
 
@@ -899,11 +899,11 @@ document.getElementById("btn-gen").onclick = async function(){
         ["calls","Calls",(n*TC.calls).toFixed(0)],
         ["minutes","Minutes",(n*TC.minutes).toFixed(0)],
         ["presentations","Pres. Held",(n*TC.presentations).toFixed(0)],
-        ["dealsClosed","Deals Closed","â€”"],
-        ["newUpfront","New Upfront","â€”"],
-        ["futureUpfront","Future Upfront","â€”"],
-        ["revenue","Revenue (Total)","â€”"],
-      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${k==="newUpfront"||k==="futureUpfront"||k==="revenue"?"$"+tot[k].toLocaleString():tot[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">â†™${tot.inbound} in</span> <span class="bd-out">â†—${tot.outbound} out</span> <span class="bd-miss">âœ•${tot.missed} miss</span></div>`:""}</div>`).join("");
+        ["dealsClosed","Deals Closed","—"],
+        ["newUpfront","New Upfront","—"],
+        ["futureUpfront","Future Upfront","—"],
+        ["revenue","Revenue (Total)","—"],
+      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${k==="newUpfront"||k==="futureUpfront"||k==="revenue"?"$"+tot[k].toLocaleString():tot[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${tot.inbound} in</span> <span class="bd-out">↗${tot.outbound} out</span> <span class="bd-miss">✕${tot.missed} miss</span></div>`:""}</div>`).join("");
 
       document.getElementById("tiles").innerHTML = closers.map(c => {
         const onLeave = (leaveMap[c.name] || 0) >= effectiveDays;
@@ -917,7 +917,7 @@ document.getElementById("btn-gen").onclick = async function(){
               ${onLeave ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[c.zone]}</div>`}
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div class="tile-score">${onLeave ? "" : `${c.composite}%${c.zone==="gold"?'<span class="tile-star">â˜…</span>':''}`}</div>
+              <div class="tile-score">${onLeave ? "" : `${c.composite}%${c.zone==="gold"?'<span class="tile-star">★</span>':''}`}</div>
             </div>
           </div>
           ${onLeave ? "" : `
@@ -925,9 +925,9 @@ document.getElementById("btn-gen").onclick = async function(){
             ${[["calls",c.calls],["mins",c.minutes],["pres",c.presentations],["deals",c.dealsClosed]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
           </div>
           <div class="tile-call-breakdown">
-            <span class="bd-in">â†™${c.inbound} in</span>
-            <span class="bd-out">â†—${c.outbound} out</span>
-            <span class="bd-miss">âœ•${c.missed} miss</span>
+            <span class="bd-in">↙${c.inbound} in</span>
+            <span class="bd-out">↗${c.outbound} out</span>
+            <span class="bd-miss">✕${c.missed} miss</span>
           </div>
           <div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.07);font-size:12px;display:flex;justify-content:space-between;gap:6px">
             <span>New: <strong>$${c.newUpfront.toLocaleString()}</strong></span>
@@ -937,7 +937,7 @@ document.getElementById("btn-gen").onclick = async function(){
           ${onLeave ? `
           <div class="on-leave-overlay">
             <div class="on-leave-stamp">
-              <div class="stamp-icon">ðŸ“…</div>
+              <div class="stamp-icon">📅</div>
               <div class="stamp-text">ON LEAVE</div>
             </div>
           </div>` : ""}
@@ -959,7 +959,7 @@ document.getElementById("btn-gen").onclick = async function(){
         ["discoveries","Discoveries",tgt(T.discoveries)],
         ["presBooked","Pres. Booked",tgt(T.presBooked)],
         ["presCompleted","Pres. Completed",tgt(T.presCompleted)]
-      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">â†™${totals.inbound} in</span> <span class="bd-out">â†—${totals.outbound} out</span> <span class="bd-miss">âœ•${totals.missed} miss</span></div>`:""}</div>`).join("");
+      ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
       document.getElementById("tiles").innerHTML = builders.map(b => {
         const onLeave = (leaveMap[b.name] || 0) >= effectiveDays;
@@ -973,7 +973,7 @@ document.getElementById("btn-gen").onclick = async function(){
               ${onLeave ? ON_LEAVE_BADGE : `<div class="card-badge">${CARD_LABELS[b.zone]}</div>`}
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div class="tile-score">${onLeave ? "" : `${b.composite}%${b.zone==="gold"?'<span class="tile-star">â˜…</span>':''}`}</div>
+              <div class="tile-score">${onLeave ? "" : `${b.composite}%${b.zone==="gold"?'<span class="tile-star">★</span>':''}`}</div>
             </div>
           </div>
           ${onLeave ? "" : `
@@ -981,14 +981,14 @@ document.getElementById("btn-gen").onclick = async function(){
             ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
           </div>
           <div class="tile-call-breakdown">
-            <span class="bd-in">â†™${b.inbound} in</span>
-            <span class="bd-out">â†—${b.outbound} out</span>
-            <span class="bd-miss">âœ•${b.missed} miss</span>
+            <span class="bd-in">↙${b.inbound} in</span>
+            <span class="bd-out">↗${b.outbound} out</span>
+            <span class="bd-miss">✕${b.missed} miss</span>
           </div>`}
           ${onLeave ? `
           <div class="on-leave-overlay">
             <div class="on-leave-stamp">
-              <div class="stamp-icon">ðŸ“…</div>
+              <div class="stamp-icon">📅</div>
               <div class="stamp-text">ON LEAVE</div>
             </div>
           </div>` : ""}
@@ -1005,7 +1005,7 @@ document.getElementById("btn-gen").onclick = async function(){
         { label:"Follow-up Calls", field:"calls",         target:TC.calls,         weight:WEIGHTS_CLOSER.calls },
         { label:"Call Minutes",    field:"minutes",        target:TC.minutes,       weight:WEIGHTS_CLOSER.minutes },
         { label:"Pres. Held",      field:"presentations",  target:TC.presentations, weight:WEIGHTS_CLOSER.presentations },
-        { label:"Deals Closed",    field:"dealsClosed",    target:"â€”",              weight:0, override:true },
+        { label:"Deals Closed",    field:"dealsClosed",    target:"—",              weight:0, override:true },
       ];
       renderBreakdownTable(
         data.closers.map(c=>{ const s=scoreCloser(c,personTargets(c.name,TC)); return {...c, composite:s, zone:zoneCloser(c,s)}; }).sort((a,b)=>b.composite-a.composite),
@@ -1040,7 +1040,7 @@ document.getElementById("btn-gen").onclick = async function(){
   }
 };
 
-// Restore last report if returning from another tab â€” called after auth succeeds
+// Restore last report if returning from another tab — called after auth succeeds
 function tryRestoreReport() {
   const saved = sessionStorage.getItem("lastReport");
   if (saved) {
@@ -1053,7 +1053,7 @@ function tryRestoreReport() {
       return;
     } catch(_) { sessionStorage.removeItem("lastReport"); }
   }
-  // No saved report â€” auto-load today's data with default role (Builder)
+  // No saved report — auto-load today's data with default role (Builder)
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   document.getElementById("inp-start").value = today;
   document.getElementById("inp-end").value   = today;
@@ -1064,13 +1064,13 @@ function tryRestoreReport() {
 // Auto-fire report when role dropdown changes
 document.getElementById("btn-force-refresh").onclick = async function() {
   const btn = this;
-  btn.disabled = true; btn.textContent = "â†» Refreshing...";
+  btn.disabled = true; btn.textContent = "↻ Refreshing...";
   setStatus("Forcing fresh data from Zoho CRM...");
   try {
     const res = await fetch("/api/refresh?secret=elevate2024&force=true");
     const data = await res.json();
     if (data.ok) {
-      setStatus("Cache refreshed âœ“ â€” loading fresh data...");
+      setStatus("Cache refreshed ✓ — loading fresh data...");
       setTimeout(() => document.getElementById("btn-gen").click(), 800);
     } else {
       setStatus("Refresh failed: " + (data.error || JSON.stringify(data)));
@@ -1078,7 +1078,7 @@ document.getElementById("btn-force-refresh").onclick = async function() {
   } catch(e) {
     setStatus("Refresh error: " + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = "â†» Force";
+    btn.disabled = false; btn.textContent = "↻ Force";
   }
 };
 
@@ -1092,7 +1092,7 @@ document.getElementById("inp-role").addEventListener("change", () => {
   }, 400);
 });
 
-// â”€â”€ Supabase Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Supabase Auth ─────────────────────────────────────────────────────────────
 const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -1194,5 +1194,3 @@ document.getElementById("btn-signout").onclick = async () => {
 </script>
 </body>
 </html>
-
-

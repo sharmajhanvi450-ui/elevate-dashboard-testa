@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ElevateMe â€” Attendance</title>
+<title>ElevateMe — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -259,7 +259,7 @@ function renderTeams() {
               </div>
               <button class="toggle-btn ${isLeave ? 'leave' : 'present'}"
                 onclick="toggleStatus('${m.name}')"
-              >${isLeave ? 'âœ— On Leave' : 'âœ“ Present'}</button>
+              >${isLeave ? '✗ On Leave' : '✓ Present'}</button>
             </div>`;
         }).join("")}
       </div>`;
@@ -390,5 +390,3 @@ document.getElementById("btn-save").onclick = async () => {
 </script>
 </body>
 </html>
-
-

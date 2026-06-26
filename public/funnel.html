@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ElevateMe â€” Lead Funnel</title>
+<title>ElevateMe — Lead Funnel</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -234,7 +234,7 @@
 </div>
 
 <script>
-// â”€â”€ Date helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Date helpers ────────────────────────────────────────────────────────────
 function todayEST() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
@@ -265,7 +265,7 @@ function setPreset(type, btn) {
   }
 }
 
-// â”€â”€ Bar color gradient by stage index â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Bar color gradient by stage index ───────────────────────────────────────
 function stageColor(i, total) {
   const t = i / (total - 1);
   const r = Math.round(255 * (1-t) + 0 * t);
@@ -274,7 +274,7 @@ function stageColor(i, total) {
   return `rgba(${r},${g},${b},0.85)`;
 }
 
-// â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Render ───────────────────────────────────────────────────────────────────
 function render(data) {
   const { funnel } = data;
   const assigned = funnel[0].count || 1;
@@ -293,7 +293,7 @@ function render(data) {
         <div class="conv">
           ${i===0 ? '<span style="color:var(--accent)">Base stage</span>' :
             `<span class="${pct>=50?'conv-green':'conv-red'}">${pct}%</span> of assigned`}
-          ${drop != null ? `&nbsp;Â·&nbsp;<span class="${drop>50?'conv-red':drop>25?'':' conv-green'}">â–¼${drop}%</span>` : ''}
+          ${drop != null ? `&nbsp;·&nbsp;<span class="${drop>50?'conv-red':drop>25?'':' conv-green'}">▼${drop}%</span>` : ''}
         </div>
       </div>`;
   }).join("");
@@ -317,7 +317,7 @@ function render(data) {
         </div>
         <div class="funnel-meta">
           <div class="funnel-pct-assigned"><span>${pctAssigned}%</span> of assigned</div>
-          ${drop != null ? `<div class="funnel-drop ${dropClass}">â–¼ ${drop}% drop from prev</div>` : ''}
+          ${drop != null ? `<div class="funnel-drop ${dropClass}">▼ ${drop}% drop from prev</div>` : ''}
         </div>
       </div>
       ${i < funnel.length-1 ? '<div class="funnel-divider"></div>' : ''}`;
@@ -358,7 +358,7 @@ function render(data) {
   document.getElementById("results").style.display = "block";
 }
 
-// â”€â”€ Fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fetch ────────────────────────────────────────────────────────────────────
 function setStatus(msg) { document.getElementById("status").textContent = msg || ""; }
 function setError(msg)  { const el = document.getElementById("error-box"); el.className = "error-box" + (msg?" show":""); el.textContent = msg||""; }
 
@@ -388,7 +388,7 @@ document.getElementById("btn-gen").onclick = async function() {
     if (!res.ok) throw new Error(data.error || "Server error");
 
     const fromCache = res.headers.get("X-Cache") === "HIT";
-    setStatus(fromCache ? "Loaded from cache âš¡" : "Fetched from Zoho CRM");
+    setStatus(fromCache ? "Loaded from cache ⚡" : "Fetched from Zoho CRM");
     render(data);
   } catch(e) {
     setError(e.message || "Something went wrong.");
@@ -410,7 +410,7 @@ function autoFire() {
 }
 ["inp-bde","inp-tl","inp-source"].forEach(id => document.getElementById(id).addEventListener("change", autoFire));
 
-// â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Auth ─────────────────────────────────────────────────────────────────────
 const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -484,5 +484,3 @@ document.getElementById("btn-signout").onclick = async () => {
 </script>
 </body>
 </html>
-
-
