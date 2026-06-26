@@ -600,7 +600,7 @@ const ZONE_COLOR = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"
 
 function kpiCell(actual, target, weight){
   const raw = target > 0 ? (actual / target) * 100 : 0;
-  const capped = raw;
+  const capped = CAP_ENABLED ? Math.min(150, raw) : raw;
   const contrib = (capped * weight).toFixed(1);
   const pctColor = capped >= 100 ? "#00e676" : capped >= 75 ? "#ffab00" : "#ff4d6a";
   const barW = Math.min(100, (capped / 150) * 100).toFixed(0);
