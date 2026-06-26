@@ -248,7 +248,7 @@ function renderBDE(bdes) {
   bdes.forEach(b => { Object.keys(totals).forEach(k => totals[k] += b[k]||0); });
 
   document.getElementById("summary-bar").innerHTML = [
-    ["Generated", totals.generated, var(--blue)],
+    ["Generated", totals.generated, "#40c4ff"],
     ["Touched",   totals.touched,   "#a78bfa"],
     ["Connected", totals.connected, "#40c4ff"],
     ["Qualified", totals.qualified, "#ffd740"],
