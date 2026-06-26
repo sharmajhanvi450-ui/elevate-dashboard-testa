@@ -151,7 +151,8 @@ export default async function handler(req, res) {
       if (!map[bde]) map[bde] = {
         name: bde, generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
         sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
-        types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 }
+        types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
+        linkedInICP: 0
       };
     }
     function inc(bde, field) { if (bde && map[bde]) map[bde][field]++; }
@@ -160,12 +161,15 @@ export default async function handler(req, res) {
       map[bde][field][key] = (map[bde][field][key] || 0) + 1;
     }
 
+    function isICP(typ) { return typ.startsWith("ICP "); }
+
     [...genLeads, ...genContacts].forEach(r => {
       const b = getBDE(r,false); ensure(b); inc(b,"generated");
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
+      if (normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
     });
     genDeals.forEach(r => {
       const b = getBDE(r,true); ensure(b); inc(b,"generated");
@@ -173,6 +177,7 @@ export default async function handler(req, res) {
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
+      if (normalizeSource(src) === "LinkedIn" && isICP(typ)) map[b].linkedInICP++;
     });
     [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"touched"); });
     touchedDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"touched"); });

@@ -268,10 +268,11 @@ function setStatus(msg) { document.getElementById("status").textContent = msg; }
 function setError(msg)  { document.getElementById("error-msg").textContent = msg; }
 
 // LinkedIn team config
-const LINKEDIN_TEAM = ["zia","roanoke","mate","bomi"];
-const LI_MONTHLY_TARGET = 100;
+const LINKEDIN_TEAM     = ["jia","runa","kmet","bumi"];
+const LI_DAILY_TARGET   = 15;
 const LI_WORKING_DAYS   = 22;
-const LI_DAILY_RATE     = LI_MONTHLY_TARGET / LI_WORKING_DAYS; // ~4.55
+const LI_MONTHLY_TARGET = LI_DAILY_TARGET * LI_WORKING_DAYS; // 330
+const LI_DAILY_RATE     = LI_DAILY_TARGET; // 15/day
 
 function isLinkedInMember(name) {
   if (!name) return false;
@@ -360,17 +361,17 @@ function renderBDE(bdes, startDate, endDate) {
 
     let kpiHtml = "";
     if (isLinkedInMember(b.name)) {
-      const achieved = b.generated;
+      const achieved = b.linkedInICP || 0;
       const progress = Math.min(100, Math.round((achieved / periodTarget) * 100));
       const fillColor = barColor(progress);
       const remaining = Math.max(0, periodTarget - achieved);
       kpiHtml = `<div class="kpi-target">
         <div class="kpi-target-header">
-          <span class="kpi-target-label">LinkedIn KPI <span class="linkedin-badge">LI</span></span>
+          <span class="kpi-target-label">LinkedIn ICP KPI <span class="linkedin-badge">LI</span></span>
           <span class="kpi-target-nums" style="color:${fillColor}">${achieved} / ${periodTarget}</span>
         </div>
         <div class="kpi-track"><div class="kpi-track-fill" style="width:${progress}%;background:${fillColor}"></div></div>
-        <div class="kpi-target-sub">${progress}% of period target (${wDays} working days)${remaining > 0 ? ` · ${remaining} to go` : " · Target met!"}</div>
+        <div class="kpi-target-sub">${progress}% · ${LI_DAILY_TARGET}/day target · ${wDays} working days${remaining > 0 ? ` · ${remaining} to go` : " · Target met! 🎯"}</div>
       </div>`;
     }
 
