@@ -617,7 +617,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
   document.getElementById("breakdown-table").innerHTML = head + `<tbody>${rows}</tbody>`;
 }
 
-let CAP_ENABLED = false;
+let CAP_ENABLED = true;
 function toggleCap(){
   CAP_ENABLED = !CAP_ENABLED;
   const tog = document.getElementById("cap-toggle");
