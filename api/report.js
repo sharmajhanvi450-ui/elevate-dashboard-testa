@@ -199,12 +199,12 @@ export default async function handler(req, res) {
         const base = { name: u.full_name, id: u.id, tlName: tl,
           calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0 };
         if (isC) closerMap[u.id]  = { ...base, presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 };
-        else     builderMap[u.id] = { ...base, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
+        else     builderMap[u.id] = { ...base, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0, dealsClosed: 0 };
       });
 
       const CF = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
       const [calls, presHeld, closedDeals, upfrontDeals,
-             leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
+             leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC, builderClosedDeals] = await Promise.all([
         fetchCallsForRange(token, startDate, endDate, CF),
         fetchByDateRange(token, "Deals", "Owner,Team_Lead",                        startDate, endDate, "Presentation_Completed_Date"),
         fetchByDateRange(token, "Deals", "Owner,Future_Booked_Upfront,Team_Lead",  startDate, endDate, "Deal_Closed_Date"),
@@ -215,6 +215,7 @@ export default async function handler(req, res) {
         fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",                startDate, endDate, "Discovery_Completed_Date"),
         fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",                startDate, endDate, "Presentation_Booked_Date"),
         fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",                startDate, endDate, "Presentation_Completed_Date"),
+        fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",                startDate, endDate, "Deal_Closed_Date"),
       ]);
 
       calls.forEach(c => {
@@ -233,8 +234,9 @@ export default async function handler(req, res) {
       leadsDisc.forEach(l => { const id=l.Owner?.id;   if(builderMap[id]) builderMap[id].discoveries++; });
       dealsQL.forEach(d   => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].leads++; });
       dealsDisc.forEach(d => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].discoveries++; });
-      dealsPB.forEach(d   => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].presBooked++; });
-      dealsPC.forEach(d   => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].presCompleted++; });
+      dealsPB.forEach(d           => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].presBooked++; });
+      dealsPC.forEach(d           => { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].presCompleted++; });
+      builderClosedDeals.forEach(d=> { const id=d.Builder?.id; if(builderMap[id]) builderMap[id].dealsClosed++; });
 
       // Closer KPIs
       presHeld.forEach(d    => { const id=d.Owner?.id; if(closerMap[id]) closerMap[id].presentations++; });
@@ -325,11 +327,11 @@ export default async function handler(req, res) {
     users.forEach(u => {
       map[u.id] = { name: u.full_name, id: u.id, teamLead: "",
         calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0,
-        leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
+        leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0, dealsClosed: 0 };
     });
 
     const CALL_FIELDS = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
-    const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
+    const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC, builderClosedDeals] = await Promise.all([
       fetchCallsForRange(token, startDate, endDate, CALL_FIELDS),
       fetchByDateRange(token, "Leads", "Owner,Team_Lead", startDate, endDate, "Qualified_Lead_Date"),
       fetchByDateRange(token, "Leads", "Owner,Team_Lead", startDate, endDate, "Discovery_Completed_Date"),
@@ -337,6 +339,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Discovery_Completed_Date"),
       fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Presentation_Booked_Date"),
       fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Presentation_Completed_Date"),
+      fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", startDate, endDate, "Deal_Closed_Date"),
     ]);
 
     calls.forEach(c => {
@@ -353,8 +356,9 @@ export default async function handler(req, res) {
     leadsDisc.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; });
     dealsQL.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].leads += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
     dealsDisc.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
-    dealsPB.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presBooked += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
-    dealsPC.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    dealsPB.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presBooked += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    dealsPC.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    builderClosedDeals.forEach(d=> { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].dealsClosed += 1; });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     const result = { builders, startDate, endDate, slot, role };

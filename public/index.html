@@ -584,7 +584,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
   const head = `<thead><tr>
     <th>#</th>
     <th style="text-align:left">Name</th>
-    ${kpis.map(k=>`<th>${k.label}<br><span style="font-size:10px;opacity:0.5">${Math.round(k.weight*100)}% weight · target ${k.target}</span></th>`).join("")}
+    ${kpis.map(k=>`<th>${k.label}<br><span style="font-size:10px;opacity:0.5">${k.target===null ? "display only" : `${Math.round(k.weight*100)}% weight · target ${k.target}`}</span></th>`).join("")}
     <th>Score</th>
   </tr></thead>`;
 
@@ -609,7 +609,9 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
                 <div class="bt-target">deals</div>
                 ${dealOverride ? `<div class="bt-pct" style="color:${p.dealsClosed>=2?"#ffd740":"#00e676"};font-size:10px;margin-top:3px">${overrideLabel}</div>` : ""}
                </div></td>`
-            : kpiCell(p[k.field], k.target, k.weight)
+            : k.target === null
+              ? `<td><div class="bt-kpi"><div class="bt-val" style="color:${p[k.field]>0?"#ffd740":"#6b7499"}">${p[k.field]||0}</div><div class="bt-target">deals</div></div></td>`
+              : kpiCell(p[k.field], k.target, k.weight)
           ).join("")
       }
       <td>
@@ -987,8 +989,8 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
       builders.sort((a,b) => b.composite - a.composite);
       document.getElementById("meta-right").textContent = `${builders.length} Builder${builders.length!==1?"s":""}`;
 
-      const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0 };
-      builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; });
+      const totals = { calls:0, inbound:0, outbound:0, missed:0, minutes:0, leads:0, discoveries:0, presBooked:0, presCompleted:0, dealsClosed:0 };
+      builders.forEach(b => { totals.calls+=b.calls; totals.inbound+=b.inbound; totals.outbound+=b.outbound; totals.missed+=b.missed; totals.minutes+=b.minutes; totals.leads+=b.leads; totals.discoveries+=b.discoveries; totals.presBooked+=b.presBooked; totals.presCompleted+=b.presCompleted; totals.dealsClosed+=b.dealsClosed||0; });
       const tgt = v => (builders.length * v).toFixed(0);
       document.getElementById("totals-grid").innerHTML = [
         ["calls","Calls",tgt(T.calls)],
@@ -996,7 +998,8 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
         ["leads","Q. Leads",tgt(T.leads)],
         ["discoveries","Discoveries",tgt(T.discoveries)],
         ["presBooked","Pres. Booked",tgt(T.presBooked)],
-        ["presCompleted","Pres. Completed",tgt(T.presCompleted)]
+        ["presCompleted","Pres. Completed",tgt(T.presCompleted)],
+        ["dealsClosed","Deals Closed","—"]
       ].map(([k,lbl,tg]) => `<div class="total-item"><div class="total-val">${totals[k]}</div><div class="total-lbl">${lbl}</div><div class="total-target">target ${tg}</div>${k==="calls"?`<div class="total-breakdown"><span class="bd-in">↙${totals.inbound} in</span> <span class="bd-out">↗${totals.outbound} out</span> <span class="bd-miss">✕${totals.missed} miss</span></div>`:""}</div>`).join("");
 
       document.getElementById("tiles").innerHTML = builders.map(b => {
@@ -1016,7 +1019,7 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
           </div>
           ${onLeave ? "" : `
           <div class="tile-kpis">
-            ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
+            ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted],["deals",b.dealsClosed||0]].map(([l,v])=>`<div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join("")}
           </div>
           <div class="tile-call-breakdown">
             <span class="bd-in">↙${b.inbound} in</span>
@@ -1057,6 +1060,7 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
         { label:"Discoveries",        field:"discoveries",     target:T.discoveries,    weight:WEIGHTS.discoveries },
         { label:"Pres. Booked",       field:"presBooked",      target:T.presBooked,     weight:WEIGHTS.presBooked },
         { label:"Pres. Completed",    field:"presCompleted",   target:T.presCompleted,  weight:WEIGHTS.presCompleted },
+        { label:"Deals Closed",       field:"dealsClosed",     target:null,             weight:0 },
       ];
       renderBreakdownTable(
         data.builders.map(b=>({...b, composite:scoreBuilder(b,personTargets(b.name,T)), zone:zone(scoreBuilder(b,personTargets(b.name,T)))})).sort((a,b)=>b.composite-a.composite),
