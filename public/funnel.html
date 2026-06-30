@@ -104,42 +104,18 @@
   .mini-bar-wrap { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; min-width: 100px; }
   .mini-bar { height: 6px; border-radius: 3px; }
 
-  /* Auth overlay */
-  #auth-overlay { position: fixed; inset: 0; z-index: 9999; background: #080b14; display: flex; align-items: center; justify-content: center; }
-  .auth-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 48px 40px; text-align: center; max-width: 380px; width: 90%; }
-  .auth-logo { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
-  .auth-logo span { color: var(--accent); }
-  .auth-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
-  .auth-google-btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 14px; border-radius: 12px; background: #fff; color: #1a1a1a; font-size: 15px; font-weight: 700; border: none; cursor: pointer; }
-  .auth-google-btn img { width: 20px; height: 20px; }
-  .auth-error { margin-top: 14px; font-size: 13px; color: #ff4d6a; min-height: 18px; }
-
   #results { display: none; }
 </style>
 </head>
 <body>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<div id="auth-overlay">
-  <div class="auth-card">
-    <div class="auth-logo">Elevate<span>Me</span></div>
-    <div class="auth-sub">Sign in to view the Lead Funnel</div>
-    <button class="auth-google-btn" id="btn-google-signin">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-      Sign in with Google
-    </button>
-    <div class="auth-error" id="auth-error"></div>
-  </div>
-</div>
 
 <header>
   <div class="logo">
     <img class="logo-img" src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f" alt="ElevateMe" onerror="this.style.display='none'">
   </div>
   <div style="display:flex;align-items:center">
-    <div class="nav-links" id="nav-links" style="display:none"></div>
-    <div class="header-right" id="user-bar" style="display:none">
+    <div class="nav-links" id="nav-links"></div>
+    <div class="header-right" id="user-bar">
       <img id="user-avatar" src="" style="display:none">
       <strong id="user-name"></strong>
       <button id="btn-signout">Sign out</button>
@@ -411,77 +387,26 @@ function autoFire() {
 }
 ["inp-bde","inp-tl","inp-source"].forEach(id => document.getElementById(id).addEventListener("change", autoFire));
 
-// ── Auth ─────────────────────────────────────────────────────────────────────
-const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
-const ALLOWED_EMAILS = [
-  "aman.p@elevateme.pro","satish.r@elevateme.pro","shani@elevateme.pro",
-  "tejasvi.p@elevateme.pro","soham.b@elevateme.pro","mamta.d@elevateme.pro",
-  "prachit@elevateme.pro"
-];
-const ADMIN_EMAILS = ["aman.p@elevateme.pro","satish.r@elevateme.pro","shani@elevateme.pro","prachit@elevateme.pro"];
-
-function buildNav(email) {
-  const isAdmin = ADMIN_EMAILS.includes(email);
+function buildNav() {
   const pages = [
     { label: "Dashboard",   href: "/" },
     { label: "Funnel",      href: "/funnel.html" },
     { label: "Attendance",  href: "/attendance.html" },
-    ...(isAdmin ? [{ label: "Admin Panel", href: "/admin.html" }] : [])
+    { label: "Admin Panel", href: "/admin.html" }
   ];
   const cur = window.location.pathname;
   const navEl = document.getElementById("nav-links");
   navEl.innerHTML = pages.map(p =>
     `<a href="${p.href}" class="nav-btn${cur===p.href?' active':''}">${p.label}</a>`
   ).join("");
-  navEl.style.display = "flex";
 }
 
-let _appShown = false;
-function showApp(user) {
-  document.getElementById("auth-overlay").style.display = "none";
-  document.getElementById("user-bar").style.display = "flex";
-  document.getElementById("user-name").textContent = user.user_metadata?.full_name || user.email;
-  const av = document.getElementById("user-avatar");
-  if (user.user_metadata?.avatar_url) { av.src = user.user_metadata.avatar_url; av.style.display = ""; }
-  buildNav(user.email);
-  if (!_appShown) {
-    _appShown = true;
-    // Auto-load this month on first login
-    setPreset("month", document.querySelector(".preset-btn.active"));
-    document.getElementById("btn-gen").click();
-  }
-}
+document.getElementById("btn-signout").onclick = () => {};
 
-_supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session?.user && ADMIN_EMAILS.includes(session.user.email)) {
-    showApp(session.user);
-  } else if (session?.user) {
-    _supabase.auth.signOut();
-    document.getElementById("auth-error").textContent = "Access denied. Admin accounts only.";
-  }
-});
-
-_supabase.auth.onAuthStateChange((_e, session) => {
-  if (session?.user && ADMIN_EMAILS.includes(session.user.email)) {
-    showApp(session.user);
-  }
-});
-
-document.getElementById("btn-google-signin").onclick = async () => {
-  document.getElementById("auth-error").textContent = "";
-  const { error } = await _supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: "https://elevate-dashboard-testa.vercel.app/funnel.html" }
-  });
-  if (error) document.getElementById("auth-error").textContent = error.message;
-};
-
-document.getElementById("btn-signout").onclick = async () => {
-  await _supabase.auth.signOut(); location.reload();
-};
+// Init on page load
+buildNav();
+setPreset("month", document.querySelector(".preset-btn.active"));
+document.getElementById("btn-gen").click();
 </script>
 </body>
 </html>

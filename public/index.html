@@ -274,31 +274,6 @@
   .preset-btn:hover { border-color: var(--accent); color: var(--text); }
   .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,77,58,0.1); }
 
-  /* ── Auth overlay ─────────────────────────────────────────────────────────── */
-  #auth-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    background: #080b14;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .auth-card {
-    background: #0f1322; border: 1px solid #1e2640; border-radius: 20px;
-    padding: 48px 40px; text-align: center; max-width: 400px; width: 90%;
-    box-shadow: 0 0 60px rgba(0,0,0,0.6);
-  }
-  .auth-logo { font-size: 28px; font-weight: 800; color: #e8eaf6; margin-bottom: 8px; }
-  .auth-logo span { color: #ff4d3a; }
-  .auth-subtitle { font-size: 13px; color: #6b7499; margin-bottom: 36px; }
-  .auth-google-btn {
-    display: flex; align-items: center; justify-content: center; gap: 12px;
-    width: 100%; padding: 14px 20px; border-radius: 12px;
-    background: #fff; color: #1a1a1a; font-size: 15px; font-weight: 700;
-    border: none; cursor: pointer; transition: opacity 0.2s;
-  }
-  .auth-google-btn:hover { opacity: 0.9; }
-  .auth-google-btn img { width: 20px; height: 20px; }
-  .auth-error { margin-top: 16px; font-size: 13px; color: #ff4d6a; min-height: 20px; }
-  .auth-domain-note { margin-top: 24px; font-size: 11px; color: #3a3f5c; }
-
   /* ── Nav links ────────────────────────────────────────────────────────────── */
   .nav-links { display: flex; gap: 8px; margin-right: 16px; }
   .nav-btn {
@@ -348,22 +323,6 @@
 </style>
 </head>
 <body>
-<!-- Supabase SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- Auth overlay -->
-<div id="auth-overlay">
-  <div class="auth-card">
-    <div class="auth-logo">Elevate<span>Me</span></div>
-    <div class="auth-subtitle">Performance Dashboard</div>
-    <button class="auth-google-btn" id="btn-google-signin">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-      Sign in with Google
-    </button>
-    <div class="auth-error" id="auth-error"></div>
-    <div class="auth-domain-note">Access restricted to approved accounts</div>
-  </div>
-</div>
 <div class="container">
   <div style="background:#ff4d3a;color:#fff;text-align:center;font-size:12px;font-weight:800;padding:5px 12px;letter-spacing:1.5px;border-radius:6px;margin-bottom:10px;">⚠ TEST VERSION — Changes here will not affect the live dashboard</div>
   <header>
@@ -371,7 +330,7 @@
       <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
       <span class="logo-sub">Performance Dashboard</span>
     </div>
-    <div class="nav-links" id="nav-links" style="display:none"></div>
+    <div class="nav-links" id="nav-links"></div>
     <div id="user-bar">
       <img id="user-avatar" src="" alt="">
       <span id="user-name"></span>
@@ -837,22 +796,6 @@ document.getElementById("btn-gen").onclick = async function(){
 
   try {
     setStatus("Loading...");
-    // Log activity
-    _supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return;
-      fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          email: session.user.email,
-          full_name: session.user.user_metadata?.full_name || "",
-          avatar_url: session.user.user_metadata?.avatar_url || "",
-          action: "view_report",
-          role: role,
-          date_range: `${startDate} to ${endDate}`
-        })
-      }).catch(() => {});
-    });
     const leaveMap = await fetchLeaveMap(startDate, endDate);
     const res = await fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=${encodeURIComponent(role)}`);
     const data = await res.json();
@@ -1152,33 +1095,20 @@ document.getElementById("inp-role").addEventListener("change", () => {
   }, 400);
 });
 
-// ── Supabase Auth ─────────────────────────────────────────────────────────────
+// ── Supabase constants (still needed for fetchLeaveMap) ───────────────────────
 const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-const ALLOWED_EMAILS = [
-  "aman.p@elevateme.pro", "satish.r@elevateme.pro", "shani@elevateme.pro",
-  "tejasvi.p@elevateme.pro", "soham.b@elevateme.pro", "mamta.d@elevateme.pro",
-  "prachit@elevateme.pro"
-];
 const ADMIN_EMAILS = ["aman.p@elevateme.pro", "satish.r@elevateme.pro", "shani@elevateme.pro", "prachit@elevateme.pro"];
 
-const authOverlay  = document.getElementById("auth-overlay");
-const authError    = document.getElementById("auth-error");
-const userBar      = document.getElementById("user-bar");
-const userAvatar   = document.getElementById("user-avatar");
-const userName     = document.getElementById("user-name");
-
-function buildNav(email) {
-  const isAdmin = ADMIN_EMAILS.includes(email);
+function buildNav() {
   const currentPage = window.location.pathname;
   const pages = [
-    { label: "Dashboard", href: "/" },
-    ...(isAdmin ? [{ label: "BDE", href: "/bde.html" }] : []),
-    ...(isAdmin ? [{ label: "Funnel", href: "/funnel.html" }] : []),
-    { label: "Attendance", href: "/attendance.html" },
-    ...(isAdmin ? [{ label: "Admin Panel", href: "/admin.html" }] : [])
+    { label: "Dashboard",   href: "/" },
+    { label: "BDE",         href: "/bde.html" },
+    { label: "Funnel",      href: "/funnel.html" },
+    { label: "Attendance",  href: "/attendance.html" },
+    { label: "Admin Panel", href: "/admin.html" }
   ];
   const navEl = document.getElementById("nav-links");
   navEl.innerHTML = pages.map(p =>
@@ -1187,70 +1117,12 @@ function buildNav(email) {
   navEl.style.display = "flex";
 }
 
-let _appShown = false;
-function showApp(user) {
-  authOverlay.style.display = "none";
-  userBar.style.display = "flex";
-  userName.textContent = user.user_metadata?.full_name || user.email;
-  userAvatar.src = user.user_metadata?.avatar_url || "";
-  userAvatar.style.display = user.user_metadata?.avatar_url ? "" : "none";
-  buildNav(user.email);
-  if (ADMIN_EMAILS.includes(user.email)) {
-    document.getElementById("btn-force-refresh").style.display = "";
-  }
-  if (!_appShown) { _appShown = true; tryRestoreReport(); }
-}
+document.getElementById("btn-signout").onclick = () => {};
 
-function showAuth(errorMsg) {
-  authOverlay.style.display = "flex";
-  userBar.style.display = "none";
-  document.getElementById("nav-links").style.display = "none";
-  if (errorMsg) authError.textContent = errorMsg;
-}
-
-// Check session on load
-_supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session?.user) {
-    const email = session.user.email || "";
-    if (ALLOWED_EMAILS.includes(email)) {
-      showApp(session.user);
-    } else {
-      _supabase.auth.signOut();
-      showAuth("Access denied. Your account is not authorized.");
-    }
-  } else {
-    showAuth();
-  }
-});
-
-// Listen for auth state changes (handles redirect back from Google)
-_supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.user) {
-    const email = session.user.email || "";
-    if (ALLOWED_EMAILS.includes(email)) {
-      showApp(session.user);
-    } else {
-      _supabase.auth.signOut();
-      showAuth("Access denied. Your account is not authorized.");
-    }
-  } else {
-    showAuth();
-  }
-});
-
-document.getElementById("btn-google-signin").onclick = async () => {
-  authError.textContent = "";
-  const { error } = await _supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: "https://elevate-dashboard-testa.vercel.app" }
-  });
-  if (error) authError.textContent = error.message;
-};
-
-document.getElementById("btn-signout").onclick = async () => {
-  await _supabase.auth.signOut();
-  showAuth();
-};
+// Show force-refresh button and build nav immediately
+document.getElementById("btn-force-refresh").style.display = "";
+buildNav();
+tryRestoreReport();
 
 </script>
 </body>
