@@ -766,6 +766,22 @@ function renderTLView(teams, T, TC, leaveMap = {}) {
 // Initialise: fire Today preset, hide manual date fields
 setPreset("today", document.querySelector(".preset-btn.active"));
 
+// Handle ?role=builders or ?role=closers — set role and auto-generate
+(function() {
+  const param = new URLSearchParams(window.location.search).get("role");
+  if (!param) return;
+  const roleSelect = document.getElementById("inp-role");
+  if (param.toLowerCase() === "closers" || param.toLowerCase() === "closer") {
+    roleSelect.value = "Closer";
+  } else {
+    roleSelect.value = "Builder";
+  }
+  // Auto-generate after DOM is ready
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("btn-gen").click();
+  });
+})();
+
 function setStatus(msg){ const el=document.getElementById("status"); el.className="status-bar"+(msg?" show":""); document.getElementById("status-text").textContent=msg||""; }
 function setError(msg){ const el=document.getElementById("error-box"); el.className="error-box"+(msg?" show":""); el.textContent=msg||""; }
 
