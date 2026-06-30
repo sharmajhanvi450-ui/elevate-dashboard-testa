@@ -823,18 +823,23 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
     const WORK_START_H = 10.5, WORK_END_H = 19.5, WORK_HOURS = 9.0;
 
     function getDayFraction(dateStr) {
+      // Skip weekends — Sat/Sun are not working days
+      const d = new Date(dateStr + "T12:00:00Z");
+      const dow = d.getUTCDay(); // 0=Sun, 6=Sat
+      if (dow === 0 || dow === 6) return 0;
+
       const todayEST = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-      if (dateStr < todayEST) return 1;          // past date → full day
-      if (dateStr > todayEST) return 1;          // future date → full day (shouldn't happen)
+      if (dateStr < todayEST) return 1;          // past weekday → full day
+      if (dateStr > todayEST) return 1;          // future weekday → full day
       // It's today — calculate elapsed fraction in EST
       const nowEST = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
       const hDecimal = nowEST.getHours() + nowEST.getMinutes() / 60;
-      if (hDecimal <= WORK_START_H) return 0.01; // before 9AM — near zero
-      if (hDecimal >= WORK_END_H)   return 1;    // after 8PM  — full day
+      if (hDecimal <= WORK_START_H) return 0.01; // before start — near zero
+      if (hDecimal >= WORK_END_H)   return 1;    // after end — full day
       return (hDecimal - WORK_START_H) / WORK_HOURS;
     }
 
-    // Sum fractions across date range
+    // Sum fractions across date range (weekends automatically return 0)
     function totalDayFraction(start, end) {
       let total = 0;
       const d = new Date(start + "T12:00:00Z");
