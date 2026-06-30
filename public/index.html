@@ -506,7 +506,12 @@ function setPreset(preset, btn) {
 
   const fmt = d => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-  function offsetDay(base, n) { const d = new Date(base); d.setDate(d.getDate()+n); return d; }
+  // Always use UTC noon to avoid local-midnight crossing EST boundary (IST is +5:30)
+  function utcNoon(y, m, day) { return new Date(Date.UTC(y, m, day, 12, 0, 0)); }
+  function offsetDay(base, n) {
+    const d = new Date(base); d.setDate(d.getDate() + n);
+    return utcNoon(d.getFullYear(), d.getMonth(), d.getDate());
+  }
 
   switch(preset) {
     case "today":
@@ -527,12 +532,12 @@ function setPreset(preset, btn) {
       s.value = fmt(lastMon); e.value = fmt(lastSun); break;
     }
     case "this_month": {
-      const m1 = new Date(nowEST.getFullYear(), nowEST.getMonth(), 1);
+      const m1 = utcNoon(nowEST.getFullYear(), nowEST.getMonth(), 1);
       s.value = fmt(m1); e.value = fmt(nowEST); break;
     }
     case "last_month": {
-      const lm1 = new Date(nowEST.getFullYear(), nowEST.getMonth()-1, 1);
-      const lme  = new Date(nowEST.getFullYear(), nowEST.getMonth(), 0);
+      const lm1 = utcNoon(nowEST.getFullYear(), nowEST.getMonth() - 1, 1);
+      const lme  = utcNoon(nowEST.getFullYear(), nowEST.getMonth(), 0);
       s.value = fmt(lm1); e.value = fmt(lme); break;
     }
     case "custom": break;
