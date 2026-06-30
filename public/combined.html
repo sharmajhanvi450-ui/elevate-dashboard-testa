@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElevateMe — Combined View</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080b14; --surface: #0f1322; --border: #1e2640;
+    --text: #e8eaf6; --muted: #6b7499;
+    --accent: #ff4d3a;
+    --neon-gold: #ffd740; --neon-green: #00e676;
+    --neon-yellow: #ffab00; --neon-orange: #ff6d00; --neon-red: #ff1744;
+    --builder-accent: #C44838;
+    --closer-accent: #689775;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Nunito Sans', sans-serif; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 10%, rgba(196,72,56,0.05) 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, rgba(104,151,117,0.04) 0%, transparent 50%);
+  }
+  .container { width: 100%; padding: 1.5rem; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+    background: #000; border-bottom: 1px solid var(--border);
+    padding: 14px 24px; position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-img { height: 36px; width: auto; }
+  .logo-sub { font-size: 15px; font-weight: 400; color: #888; }
+  .nav-links { display: flex; gap: 8px; }
+  .nav-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--border); color: var(--muted); text-decoration: none;
+    transition: all 0.2s; background: none;
+  }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Controls */
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+  .preset-btn {
+    font-family: 'Nunito Sans', sans-serif;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--text); }
+  .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,77,58,0.1); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; align-items: flex-end; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .field input {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 15px; outline: none;
+    color-scheme: dark;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .btn {
+    background: var(--accent); color: #fff; border: none; padding: 11px 28px;
+    border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer;
+    transition: box-shadow 0.2s; box-shadow: 0 0 16px rgba(255,77,58,0.4);
+  }
+  .btn:hover { box-shadow: 0 0 24px rgba(255,77,58,0.6); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+  .status-bar { font-size: 14px; color: var(--muted); padding: 8px 0; display: none; }
+  .status-bar.show { display: flex; align-items: center; gap: 8px; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: rgba(255,23,68,0.1); border: 1px solid #ff1744; border-radius: 8px; padding: 12px 16px; color: #ff6b8a; font-size: 14px; margin-bottom: 1rem; display: none; }
+  .error-box.show { display: block; }
+
+  /* Two-column layout */
+  #results { display: none; }
+  .meta-bar { font-size: 13px; color: var(--muted); padding: 0.6rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media(max-width: 900px) { .split { grid-template-columns: 1fr; } }
+
+  .panel { }
+  .panel-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: 10px 10px 0 0;
+    border: 1px solid; border-bottom: none;
+    margin-bottom: 0;
+  }
+  .panel-header.builder { background: rgba(196,72,56,0.08); border-color: rgba(196,72,56,0.3); }
+  .panel-header.closer  { background: rgba(104,151,117,0.08); border-color: rgba(104,151,117,0.3); }
+  .panel-title { font-size: 15px; font-weight: 800; }
+  .panel-title.b { color: var(--builder-accent); }
+  .panel-title.c { color: var(--closer-accent); }
+  .panel-count { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  .panel-body {
+    border: 1px solid var(--border); border-radius: 0 0 10px 10px;
+    padding: 14px; background: rgba(15,19,34,0.5);
+  }
+  .panel-body.builder { border-top: none; border-color: rgba(196,72,56,0.2); }
+  .panel-body.closer  { border-top: none; border-color: rgba(104,151,117,0.2); }
+
+  /* Totals row */
+  .totals-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .tot-item { text-align: center; min-width: 70px; }
+  .tot-val { font-size: 18px; font-weight: 800; color: #ff6b6b; }
+  .tot-lbl { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .tot-tg  { font-size: 10px; color: var(--muted); opacity: 0.5; }
+
+  /* Tiles */
+  .tiles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .tile {
+    border-radius: 12px; padding: 14px 16px; border: 1px solid transparent;
+    position: relative; overflow: hidden;
+  }
+  .zone-gold   { background: linear-gradient(135deg,#1a1500,#120f00); border-color:var(--neon-gold); color:#ffd740; box-shadow:0 0 14px rgba(255,215,64,0.15); }
+  .zone-green  { background: linear-gradient(135deg,#001a0a,#000f06); border-color:var(--neon-green); color:#00e676; box-shadow:0 0 14px rgba(0,230,118,0.15); }
+  .zone-yellow { background: linear-gradient(135deg,#1a0e00,#120900); border-color:var(--neon-yellow); color:#ffab00; box-shadow:0 0 14px rgba(255,171,0,0.15); }
+  .zone-orange { background: linear-gradient(135deg,#1a0800,#120500); border-color:var(--neon-orange); color:#ff6d00; box-shadow:0 0 14px rgba(255,109,0,0.15); }
+  .zone-red    { background: linear-gradient(135deg,#180004,#0f0002); border-color:var(--neon-red); color:#ff4d6a; box-shadow:0 0 14px rgba(255,23,68,0.15); }
+  .zone-leave  { background: linear-gradient(135deg,#111114,#0c0c0f); border-color:#2e2e38; color:#4a4a5a; opacity:0.7; }
+
+  .tile-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 8px; }
+  .tile-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.12); }
+  .tile-avatar-init { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; background: rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; border: 2px solid rgba(255,255,255,0.1); }
+  .tile-info { flex: 1; min-width: 0; }
+  .tile-name { font-size: 13px; font-weight: 800; }
+  .tile-tl   { font-size: 11px; opacity: 0.5; margin-top: 1px; }
+  .tile-score { font-size: 22px; font-weight: 900; text-align: right; flex-shrink: 0; text-shadow: 0 0 10px currentColor; }
+  .card-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; border: 1px solid currentColor; margin-top: 3px; background: rgba(255,255,255,0.04); }
+  .on-leave-badge { color: #8888cc; border-color: #5555aa; }
+  .zone-leave .tile-name { color: #6a6a7a; }
+  .zone-leave .tile-score { text-shadow: none; color: #3a3a48; }
+  .zone-leave .tile-avatar { filter: grayscale(1) brightness(0.4); }
+  .zone-leave .tile-avatar-init { background: #1e1e24; color: #3a3a48; }
+
+  .tile-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; font-size: 11px; text-align: center; margin-top: 8px; }
+  .tile-kpis-7 { grid-template-columns: repeat(7, 1fr); }
+  .kv { font-weight: 800; font-size: 13px; }
+  .kl { opacity: 0.5; font-size: 10px; margin-top: 1px; }
+  .call-bd { display: flex; gap: 8px; margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.07); font-size: 11px; }
+  .bd-in  { color: #40c4ff; } .bd-out { color: #ff6b6b; } .bd-miss { color: #b388ff; }
+  .rev-row { margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.07); font-size: 11px; display: flex; justify-content: space-between; }
+
+  /* On leave stamp */
+  .leave-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .leave-stamp { font-size: 13px; font-weight: 900; letter-spacing: 2px; color: rgba(160,160,255,0.3); border: 2px dashed rgba(160,160,255,0.25); border-radius: 5px; padding: 4px 10px; transform: rotate(-12deg); }
+
+  /* Legend */
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 20px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 4px currentColor; }
+
+  @media(max-width: 600px) {
+    header { padding: 10px 14px; }
+    .logo-sub { display: none; }
+    .container { padding: 1rem; }
+    .tiles-grid { grid-template-columns: 1fr; }
+    .nav-links { order: 3; width: 100%; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div style="background:#ff4d3a;color:#fff;text-align:center;font-size:12px;font-weight:800;padding:5px 12px;letter-spacing:1.5px;border-radius:6px;margin-bottom:10px;">⚠ TEST VERSION — Changes here will not affect the live dashboard</div>
+  <header>
+    <div class="logo">
+      <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
+      <span class="logo-sub">Performance Dashboard</span>
+    </div>
+    <div class="nav-links" id="nav-links"></div>
+  </header>
+
+  <div class="presets" id="presets" style="margin-top:1.5rem">
+    <button class="preset-btn active" onclick="setPreset('today',this)">Today</button>
+    <button class="preset-btn" onclick="setPreset('yesterday',this)">Yesterday</button>
+    <button class="preset-btn" onclick="setPreset('till_yesterday',this)">Till Yesterday</button>
+    <button class="preset-btn" onclick="setPreset('this_week',this)">This Week</button>
+    <button class="preset-btn" onclick="setPreset('last_week',this)">Last Week</button>
+    <button class="preset-btn" onclick="setPreset('this_month',this)">This Month</button>
+    <button class="preset-btn" onclick="setPreset('last_month',this)">Last Month</button>
+    <button class="preset-btn" onclick="setPreset('custom',this)">Custom Range</button>
+  </div>
+
+  <div class="controls">
+    <div class="field" id="field-start" style="display:none">
+      <label>Start Date</label>
+      <input type="date" id="inp-start">
+    </div>
+    <div class="field" id="field-end" style="display:none">
+      <label>End Date</label>
+      <input type="date" id="inp-end">
+    </div>
+    <button class="btn" id="btn-gen">Generate Report</button>
+  </div>
+
+  <div class="status-bar" id="status"><div class="spinner"></div><span id="status-text"></span></div>
+  <div class="error-box" id="error-box"></div>
+
+  <div id="results">
+    <div class="meta-bar" id="meta-bar"></div>
+    <div class="split">
+      <!-- Builders -->
+      <div class="panel">
+        <div class="panel-header builder">
+          <span style="font-size:16px">🔨</span>
+          <span class="panel-title b">Builders</span>
+          <span class="panel-count" id="builder-count"></span>
+        </div>
+        <div class="panel-body builder">
+          <div class="totals-row" id="builder-totals"></div>
+          <div class="tiles-grid" id="builder-tiles"></div>
+        </div>
+      </div>
+      <!-- Closers -->
+      <div class="panel">
+        <div class="panel-header closer">
+          <span style="font-size:16px">🎯</span>
+          <span class="panel-title c">Closers</span>
+          <span class="panel-count" id="closer-count"></span>
+        </div>
+        <div class="panel-body closer">
+          <div class="totals-row" id="closer-totals"></div>
+          <div class="tiles-grid" id="closer-tiles"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><div class="dot" style="background:#ffd740;color:#ffd740"></div> Gold 110%+</span>
+      <span><div class="dot" style="background:#00e676;color:#00e676"></div> Green 95–110%</span>
+      <span><div class="dot" style="background:#ffab00;color:#ffab00"></div> Yellow 75–95%</span>
+      <span><div class="dot" style="background:#ff6d00;color:#ff6d00"></div> Orange 50–75%</span>
+      <span><div class="dot" style="background:#ff1744;color:#ff1744"></div> Red &lt;50%</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
+const DISPLAY = "10:30 AM – 7:30 PM EST";
+
+const TARGETS        = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
+const WEIGHTS        = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
+const TARGETS_CLOSER = { calls:60, minutes:120, presentations:2 };
+const WEIGHTS_CLOSER = { calls:0.40, minutes:0.20, presentations:0.40 };
+const ZONE_NEON      = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a" };
+const CARD_LABELS    = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
+
+function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
+
+function scoreBuilder(b, T){
+  const cap = (v,t) => { const p = t>0?(v/t)*100:0; return Math.min(150,p); };
+  return Math.round(
+    cap(b.calls,T.calls)*WEIGHTS.calls + cap(b.minutes,T.minutes)*WEIGHTS.minutes +
+    cap(b.leads,T.leads)*WEIGHTS.leads + cap(b.discoveries,T.discoveries)*WEIGHTS.discoveries +
+    cap(b.presBooked,T.presBooked)*WEIGHTS.presBooked + cap(b.presCompleted,T.presCompleted)*WEIGHTS.presCompleted
+  );
+}
+
+function scoreCloser(c, TC){
+  const cap = (v,t) => { const p = t>0?(v/t)*100:0; return Math.min(150,p); };
+  const kpi = cap(c.calls,TC.calls)*WEIGHTS_CLOSER.calls + cap(c.minutes,TC.minutes)*WEIGHTS_CLOSER.minutes + cap(c.presentations,TC.presentations)*WEIGHTS_CLOSER.presentations;
+  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(kpi*1.50,110),150));
+  if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(kpi*1.25,95),125));
+  return Math.round(Math.min(kpi,110));
+}
+
+function zoneCloser(c, s){ if(!c.calls && !c.dealsClosed) return "red"; return zone(s); }
+
+// Date helpers
+function estNow(){ return new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"})); }
+function fmt(d){ return d.toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
+function utcNoon(y,m,day){ return new Date(Date.UTC(y,m,day,12,0,0)); }
+function offsetDay(base,n){ const d=new Date(base); d.setDate(d.getDate()+n); return utcNoon(d.getFullYear(),d.getMonth(),d.getDate()); }
+
+function setPreset(preset, btn){
+  document.querySelectorAll(".preset-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  const s = document.getElementById("inp-start"), e = document.getElementById("inp-end");
+  const fs = document.getElementById("field-start"), fe = document.getElementById("field-end");
+  const isCustom = preset==="custom";
+  fs.style.display = isCustom?"":"none"; fe.style.display = isCustom?"":"none";
+  const now = estNow(); const dow = now.getDay()||7;
+  switch(preset){
+    case "today":         s.value=e.value=fmt(now); break;
+    case "yesterday":     s.value=e.value=fmt(offsetDay(now,-1)); break;
+    case "till_yesterday":s.value=fmt(offsetDay(now,-(dow-1))); e.value=fmt(offsetDay(now,-1)); break;
+    case "this_week":     s.value=fmt(offsetDay(now,-(dow-1))); e.value=fmt(now); break;
+    case "last_week": {   const lm=offsetDay(now,-(dow-1)-7); s.value=fmt(lm); e.value=fmt(offsetDay(lm,6)); break; }
+    case "this_month":    s.value=fmt(utcNoon(now.getFullYear(),now.getMonth(),1)); e.value=fmt(now); break;
+    case "last_month":    s.value=fmt(utcNoon(now.getFullYear(),now.getMonth()-1,1)); e.value=fmt(utcNoon(now.getFullYear(),now.getMonth(),0)); break;
+    case "custom": break;
+  }
+}
+
+function setStatus(msg){ const el=document.getElementById("status"); el.className="status-bar"+(msg?" show":""); document.getElementById("status-text").textContent=msg||""; }
+function setError(msg){ const el=document.getElementById("error-box"); el.className="error-box"+(msg?" show":""); el.textContent=msg||""; }
+
+function getDayFraction(dateStr){
+  const d = new Date(dateStr+"T12:00:00Z"); const dow=d.getUTCDay();
+  if(dow===0||dow===6) return 0;
+  const todayEST = fmt(estNow());
+  if(dateStr<todayEST||dateStr>todayEST) return 1;
+  const now=estNow(); const h=now.getHours()+now.getMinutes()/60;
+  if(h<=10.5) return 0.01; if(h>=19.5) return 1;
+  return (h-10.5)/9.0;
+}
+
+function totalDayFraction(start, end){
+  let total=0; const d=new Date(start+"T12:00:00Z"); const e=new Date(end+"T12:00:00Z");
+  while(d<=e){ total+=getDayFraction(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate()+1); }
+  return total;
+}
+
+async function fetchLeaveMap(startDate, endDate){
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/attendance?date=gte.${startDate}&date=lte.${endDate}&status=eq.leave&select=person_name,date`,
+      { headers:{ apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}` } });
+    if(!r.ok) return {};
+    const rows = await r.json();
+    const map={}; rows.forEach(row=>{ map[row.person_name]=(map[row.person_name]||0)+1; }); return map;
+  } catch { return {}; }
+}
+
+function avatarHtml(name){
+  const slug=name.toLowerCase().replace(/\s+/g,"-");
+  const init=name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return `<img class="tile-avatar" src="/photos/${slug}.png"
+    onerror="this.onerror=null;this.src='/photos/${slug}.jfif';this.onerror=function(){this.style.display='none';this.nextElementSibling.style.display='flex';};">
+    <div class="tile-avatar-init" style="display:none">${init}</div>`;
+}
+
+function renderBuilders(builders, T, effectiveDays, leaveMap){
+  // Totals
+  const tot={calls:0,inbound:0,outbound:0,missed:0,minutes:0,leads:0,discoveries:0,presBooked:0,presCompleted:0,dealsClosed:0};
+  builders.forEach(b=>{ for(const k in tot) tot[k]+=(b[k]||0); });
+  const n=builders.length;
+  document.getElementById("builder-count").textContent = `${n} members`;
+  document.getElementById("builder-totals").innerHTML = [
+    {k:"calls",   l:"Calls",        t:(n*T.calls).toFixed(0),       extra:`<div style="font-size:10px;margin-top:2px"><span class="bd-in">↙${tot.inbound}</span> <span class="bd-out">↗${tot.outbound}</span> <span class="bd-miss">✕${tot.missed}</span></div>`},
+    {k:"minutes", l:"Minutes",      t:(n*T.minutes).toFixed(0)},
+    {k:"leads",   l:"Q. Leads",     t:(n*T.leads).toFixed(0)},
+    {k:"discoveries",l:"Discoveries",t:(n*T.discoveries).toFixed(0)},
+    {k:"presBooked",  l:"Pres. Booked",  t:(n*T.presBooked).toFixed(0)},
+    {k:"presCompleted",l:"Pres. Completed",t:(n*T.presCompleted).toFixed(0)},
+    {k:"dealsClosed", l:"Deals Closed",   t:"—"},
+  ].map(({k,l,t,extra=""})=>`<div class="tot-item"><div class="tot-val">${tot[k]}</div><div class="tot-lbl">${l}</div><div class="tot-tg">target ${t}</div>${extra}</div>`).join("");
+
+  document.getElementById("builder-tiles").innerHTML = builders.map(b=>{
+    const onLeave=(leaveMap[b.name]||0)>=effectiveDays;
+    const sc=scoreBuilder(b,T); const z=zone(sc);
+    const col=onLeave?"#4a4a5a":(ZONE_NEON[z]||"#aaa");
+    const star=z==="gold"?'<span style="font-size:14px">★</span>':'';
+    return `<div class="tile ${onLeave?"zone-leave":"zone-"+z}">
+      <div class="tile-header">
+        ${avatarHtml(b.name)}
+        <div class="tile-info">
+          <div class="tile-name">${b.name}</div>
+          ${b.teamLead?`<div class="tile-tl">${b.teamLead}</div>`:""}
+          ${onLeave?`<div class="card-badge on-leave-badge">🏖 On Leave</div>`:`<div class="card-badge">${CARD_LABELS[z]}</div>`}
+        </div>
+        <div class="tile-score">${onLeave?"":sc+"%"+star}</div>
+      </div>
+      ${onLeave?`<div class="leave-overlay"><div class="leave-stamp">ON LEAVE</div></div>`:
+      `<div class="tile-kpis tile-kpis-7">
+        ${[["calls",b.calls],["mins",b.minutes],["leads",b.leads],["disco",b.discoveries],["pres.b",b.presBooked],["pres.c",b.presCompleted],["deals",b.dealsClosed||0]].map(([l,v])=>`<div><div class="kv">${v}</div><div class="kl">${l}</div></div>`).join("")}
+      </div>
+      <div class="call-bd"><span class="bd-in">↙${b.inbound} in</span><span class="bd-out">↗${b.outbound} out</span><span class="bd-miss">✕${b.missed} miss</span></div>`}
+    </div>`;
+  }).join("");
+}
+
+function renderClosers(closers, TC, effectiveDays, leaveMap){
+  const tot={calls:0,inbound:0,outbound:0,missed:0,minutes:0,presentations:0,dealsClosed:0,newUpfront:0,futureUpfront:0,revenue:0};
+  closers.forEach(c=>{ for(const k in tot) tot[k]+=(c[k]||0); });
+  const n=closers.length;
+  document.getElementById("closer-count").textContent = `${n} members`;
+  document.getElementById("closer-totals").innerHTML = [
+    {k:"calls",       l:"Calls",         t:(n*TC.calls).toFixed(0),       extra:`<div style="font-size:10px;margin-top:2px"><span class="bd-in">↙${tot.inbound}</span> <span class="bd-out">↗${tot.outbound}</span> <span class="bd-miss">✕${tot.missed}</span></div>`},
+    {k:"minutes",     l:"Minutes",       t:(n*TC.minutes).toFixed(0)},
+    {k:"presentations",l:"Pres. Held",   t:(n*TC.presentations).toFixed(0)},
+    {k:"dealsClosed", l:"Deals Closed",  t:"—"},
+    {k:"revenue",     l:"Revenue",        t:"—", fmt:"$"},
+  ].map(({k,l,t,extra="",fmt=""})=>`<div class="tot-item"><div class="tot-val">${fmt}${fmt?tot[k].toLocaleString():tot[k]}</div><div class="tot-lbl">${l}</div><div class="tot-tg">target ${t}</div>${extra}</div>`).join("");
+
+  document.getElementById("closer-tiles").innerHTML = closers.map(c=>{
+    const onLeave=(leaveMap[c.name]||0)>=effectiveDays;
+    const sc=scoreCloser(c,TC); const z=zoneCloser(c,sc);
+    const star=z==="gold"?'<span style="font-size:14px">★</span>':'';
+    return `<div class="tile ${onLeave?"zone-leave":"zone-"+z}">
+      <div class="tile-header">
+        ${avatarHtml(c.name)}
+        <div class="tile-info">
+          <div class="tile-name">${c.name}</div>
+          ${c.teamLead?`<div class="tile-tl">${c.teamLead}</div>`:""}
+          ${onLeave?`<div class="card-badge on-leave-badge">🏖 On Leave</div>`:`<div class="card-badge">${CARD_LABELS[z]}</div>`}
+        </div>
+        <div class="tile-score">${onLeave?"":sc+"%"+star}</div>
+      </div>
+      ${onLeave?`<div class="leave-overlay"><div class="leave-stamp">ON LEAVE</div></div>`:
+      `<div class="tile-kpis">
+        ${[["calls",c.calls],["mins",c.minutes],["pres",c.presentations],["deals",c.dealsClosed]].map(([l,v])=>`<div><div class="kv">${v}</div><div class="kl">${l}</div></div>`).join("")}
+      </div>
+      <div class="call-bd"><span class="bd-in">↙${c.inbound} in</span><span class="bd-out">↗${c.outbound} out</span><span class="bd-miss">✕${c.missed} miss</span></div>
+      <div class="rev-row">
+        <span>New: <strong>$${c.newUpfront.toLocaleString()}</strong></span>
+        <span>Future: <strong>$${c.futureUpfront.toLocaleString()}</strong></span>
+        <span>Rev: <strong>$${c.revenue.toLocaleString()}</strong></span>
+      </div>`}
+    </div>`;
+  }).join("");
+}
+
+document.getElementById("btn-gen").onclick = async function(){
+  const startDate = document.getElementById("inp-start").value;
+  const endDate   = document.getElementById("inp-end").value;
+  if(!startDate||!endDate){ setError("Please select both start and end dates."); return; }
+  if(startDate>endDate){ setError("Start date must be on or before end date."); return; }
+
+  this.disabled=true; this.textContent="Loading...";
+  setError(""); document.getElementById("results").style.display="none";
+  setStatus("Fetching Builders and Closers...");
+
+  try {
+    const [leaveMap, builderRes, closerRes] = await Promise.all([
+      fetchLeaveMap(startDate, endDate),
+      fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=Builder`),
+      fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=Closer`),
+    ]);
+
+    if(!builderRes.ok){ const d=await builderRes.json(); throw new Error("Builder fetch failed: "+(d.error||builderRes.status)); }
+    if(!closerRes.ok){ const d=await closerRes.json(); throw new Error("Closer fetch failed: "+(d.error||closerRes.status)); }
+
+    const builderData = await builderRes.json();
+    const closerData  = await closerRes.json();
+
+    const bFromCache = builderRes.headers.get("X-Cache")==="HIT";
+    const cFromCache = closerRes.headers.get("X-Cache")==="HIT";
+    setStatus((bFromCache&&cFromCache)?"Loaded from cache ⚡":"Fetched from Zoho CRM");
+
+    const effectiveDays = totalDayFraction(startDate, endDate);
+    const T  = Object.fromEntries(Object.entries(TARGETS).map(([k,v])        =>[k,Math.max(1,Math.round(v*effectiveDays))]));
+    const TC = Object.fromEntries(Object.entries(TARGETS_CLOSER).map(([k,v]) =>[k,Math.max(1,Math.round(v*effectiveDays))]));
+
+    function personT(name, baseT){
+      const lv=leaveMap[name]||0; const adj=Math.max(0.1,effectiveDays-lv); const ratio=adj/effectiveDays;
+      return Object.fromEntries(Object.entries(baseT).map(([k,v])=>[k,Math.max(1,Math.round(v*ratio))]));
+    }
+
+    // Score and sort
+    const builders = (builderData.builders||[])
+      .map(b=>({...b, composite:scoreBuilder(b,personT(b.name,T)), zone:zone(scoreBuilder(b,personT(b.name,T)))}))
+      .sort((a,b)=>b.composite-a.composite);
+
+    const closers = (closerData.closers||[])
+      .map(c=>{ const s=scoreCloser(c,personT(c.name,TC)); return {...c, composite:s, zone:zoneCloser(c,s)}; })
+      .sort((a,b)=>b.composite-a.composite);
+
+    // Meta bar
+    const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}).toUpperCase();
+    const dl = startDate===endDate?fmtDate(startDate):`${fmtDate(startDate)} – ${fmtDate(endDate)}`;
+    const todayEST = fmt(estNow());
+    const isLive = endDate===todayEST;
+    const pct = Math.round(getDayFraction(endDate)*100);
+    const now = estNow().toLocaleString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit",hour12:true});
+    document.getElementById("meta-bar").innerHTML =
+      `${dl} &nbsp;·&nbsp; ${DISPLAY} &nbsp;<span style="color:${isLive?"#ffab00":"var(--muted)"}">· ${isLive?`Pulled at ${now} EST · ${pct}% of workday`:"Full day · 100%"}</span>`;
+
+    renderBuilders(builders, T, effectiveDays, leaveMap);
+    renderClosers(closers, TC, effectiveDays, leaveMap);
+    document.getElementById("results").style.display="block";
+    setStatus("");
+
+    sessionStorage.setItem("combinedReport", JSON.stringify({startDate,endDate}));
+  } catch(e) {
+    setError(e.message||"Something went wrong.");
+    setStatus("");
+  } finally {
+    this.disabled=false; this.textContent="Generate Report";
+  }
+};
+
+function buildNav(){
+  const cur = window.location.pathname;
+  const pages = [
+    {label:"Dashboard", href:"/"},
+    {label:"Combined",  href:"/combined.html"},
+    {label:"BDE",       href:"/bde.html"},
+    {label:"Funnel",    href:"/funnel.html"},
+    {label:"Attendance",href:"/attendance.html"},
+    {label:"Admin Panel",href:"/admin.html"},
+  ];
+  document.getElementById("nav-links").innerHTML = pages.map(p=>
+    `<a href="${p.href}" class="nav-btn${cur===p.href?" active":""}">${p.label}</a>`
+  ).join("");
+}
+
+buildNav();
+setPreset("today", document.querySelector(".preset-btn.active"));
+
+// Restore from session or auto-load today
+(function(){
+  const saved = sessionStorage.getItem("combinedReport");
+  if(saved){
+    try {
+      const {startDate,endDate} = JSON.parse(saved);
+      document.getElementById("inp-start").value=startDate;
+      document.getElementById("inp-end").value=endDate;
+    } catch(_){}
+  }
+  setTimeout(()=>document.getElementById("btn-gen").click(), 50);
+})();
+</script>
+</body>
+</html>
