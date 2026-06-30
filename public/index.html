@@ -1068,6 +1068,16 @@ function renderReport({ data, startDate, endDate, role, leaveMap = {} }) {
 
 // Restore last report if returning from another tab — called after auth succeeds
 function tryRestoreReport() {
+  // ?role= URL param takes priority over everything
+  const urlRole = new URLSearchParams(window.location.search).get("role");
+  if (urlRole) {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    document.getElementById("inp-start").value = today;
+    document.getElementById("inp-end").value   = today;
+    document.getElementById("inp-role").value  = (urlRole.toLowerCase().startsWith("closer")) ? "Closer" : "Builder";
+    document.getElementById("btn-gen").click();
+    return;
+  }
   const saved = sessionStorage.getItem("lastReport");
   if (saved) {
     try {
