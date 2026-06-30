@@ -618,8 +618,7 @@ function renderBreakdownTable(people, kpis, targets, weights, isCloser){
 }
 
 let CAP_ENABLED = true;
-function toggleCap(){
-  CAP_ENABLED = !CAP_ENABLED;
+function updateCapUI(){
   const tog = document.getElementById("cap-toggle");
   const knob = document.getElementById("cap-knob");
   const lbl = document.getElementById("cap-label");
@@ -634,9 +633,14 @@ function toggleCap(){
     knob.style.background = "var(--muted)";
     lbl.textContent = "Cap 150%: OFF";
   }
-  // Re-render if data is already loaded
+}
+function toggleCap(){
+  CAP_ENABLED = !CAP_ENABLED;
+  updateCapUI();
   if(window._lastReportData) renderReport(window._lastReportData);
 }
+// Apply initial visual state on load
+document.addEventListener("DOMContentLoaded", updateCapUI);
 
 function scoreBuilder(b, t){
   const cap = (v,tgt) => { const pct = tgt>0 ? (v/tgt)*100 : 0; return CAP_ENABLED ? Math.min(150,pct) : pct; };
