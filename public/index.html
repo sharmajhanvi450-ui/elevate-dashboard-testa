@@ -243,9 +243,18 @@
   .tl-section-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 8px 22px 4px; }
 
   /* Closer explanation banner */
-  .closer-rules { display:none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 1.5rem; }
+  .closer-rules { display:none; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden; }
   .closer-rules.show { display: block; }
-  .closer-rules-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; }
+  .closer-rules-title {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px;
+    padding: 12px 22px; user-select: none; transition: color 0.15s;
+  }
+  .closer-rules-title:hover { color: var(--text); }
+  .closer-rules-title .chevron { transition: transform 0.2s; display: inline-block; }
+  .closer-rules-title.open .chevron { transform: rotate(90deg); }
+  .closer-rules-body { display: none; padding: 0 22px 18px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .closer-rules-body.show { display: block; }
   .closer-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .cr-section { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
   .cr-section-title { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
@@ -390,7 +399,8 @@
     </div>
 
     <div class="closer-rules" id="closer-rules">
-      <div class="closer-rules-title">How Closer Scores Work</div>
+      <div class="closer-rules-title" onclick="toggleRules('closer-rules')"><span class="chevron">▶</span> How Closer Scores Work</div>
+      <div class="closer-rules-body" id="closer-rules-body">
       <div class="closer-rules-grid">
         <div class="cr-section">
           <div class="cr-section-title">📊 KPI Weights</div>
@@ -417,10 +427,12 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <div class="closer-rules" id="tl-rules">
-      <div class="closer-rules-title">How Team Leader Scores Work</div>
+      <div class="closer-rules-title" onclick="toggleRules('tl-rules')"><span class="chevron">▶</span> How Team Leader Scores Work</div>
+      <div class="closer-rules-body" id="tl-rules-body">
       <div class="closer-rules-grid">
         <div class="cr-section">
           <div class="cr-section-title">📊 Team Health Score</div>
@@ -431,6 +443,7 @@
             <span class="cr-detail">Each member scored against their own role (Builder or Closer) KPIs + deal override rules apply to Closers</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -552,6 +565,13 @@ const WEIGHTS_CLOSER = { calls:0.40, minutes:0.20, presentations:0.40 };
 // Deal override: 1 deal = Green Card, 2+ deals = Gold Card (ignores score)
 
 function zone(s){ return s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red"; }
+
+function toggleRules(id){
+  const title = document.querySelector(`#${id} .closer-rules-title`);
+  const body  = document.getElementById(`${id}-body`);
+  title.classList.toggle("open");
+  body.classList.toggle("show");
+}
 
 function toggleBreakdown(){
   const tog = document.getElementById("breakdown-toggle");
