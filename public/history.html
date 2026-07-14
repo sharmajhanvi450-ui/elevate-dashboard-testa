@@ -158,8 +158,9 @@ function scoreBuilder(b, t){
 function scoreCloser(c, t){
   const k = cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls + cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
             cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations;
-  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(k*1.50,110),150));
-  if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(k*1.25,95),125));
+  // Range report deal override: Gold >= 4 deals, Green >= 2 deals, else pure KPI
+  if (c.dealsClosed >= 4) return Math.round(Math.min(Math.max(k*1.50,110),150));
+  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(k*1.25,95),125));
   return Math.round(Math.min(k,110));
 }
 
