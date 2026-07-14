@@ -223,7 +223,9 @@ function aggregate(rows){
 }
 
 function scoreFor(p){
-  const workDays = Math.max(0.1, p.days - p.leaveDays);
+  // Target = ALL working days in the period; leave is NOT deducted (leave is the
+  // person's own choice, so they're still measured against the full month).
+  const workDays = Math.max(0.1, p.days);
   if (p.role === "Closer"){
     const t = Object.fromEntries(Object.entries(TARGETS_CLOSER).map(([k,v]) => [k, v*workDays]));
     return scoreCloser(p, t);
