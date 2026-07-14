@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElevateMe — Performance History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080b14; --surface: #0f1322; --border: #1e2640;
+    --text: #e8eaf6; --muted: #6b7499;
+    --neon-gold: #ffd740; --neon-green: #00e676;
+    --neon-yellow: #ffab00; --neon-orange: #ff6d00; --neon-red: #ff1744;
+    --neon-leave: #8888cc;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Nunito Sans', sans-serif; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 10%, rgba(196,72,56,0.06) 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, rgba(0,230,118,0.04) 0%, transparent 50%);
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    background: #000; border-bottom: 1px solid var(--border);
+    padding: 14px 24px; position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+  .logo span { color: var(--neon-green); }
+  .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .nav-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--muted);
+    text-decoration: none; border: 1px solid var(--border); background: var(--surface); }
+  .nav-btn.active, .nav-btn:hover { color: var(--text); border-color: var(--neon-green); }
+  .container { width: 100%; padding: 1.5rem; max-width: 1600px; margin: 0 auto; }
+
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 1rem; align-items: end; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 10px; border-radius: 8px; font-family: inherit; font-size: 14px;
+  }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.2rem; }
+  .preset-btn { padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted); cursor: pointer; }
+  .preset-btn.active { color: #000; background: var(--neon-green); border-color: var(--neon-green); }
+  .btn-gen { padding: 10px 20px; border-radius: 8px; font-weight: 800; font-size: 14px;
+    background: var(--neon-green); color: #000; border: none; cursor: pointer; }
+  .btn-gen:disabled { opacity: 0.5; cursor: default; }
+
+  .status { font-size: 13px; color: var(--muted); margin-bottom: 1rem; min-height: 18px; }
+
+  .team-block { margin-bottom: 2rem; }
+  .team-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .team-name { font-size: 20px; font-weight: 800; }
+  .team-avg { font-size: 14px; color: var(--muted); }
+  .team-avg b { font-size: 18px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; position: relative; overflow: hidden; }
+  .card.leave { opacity: 0.65; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .card-name { font-size: 16px; font-weight: 800; }
+  .card-role { font-size: 12px; color: var(--muted); }
+  .card-score { font-size: 26px; font-weight: 800; }
+  .card-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 12px; margin-top: 4px; border: 1px solid; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 4px; margin: 10px 0; }
+  .kpi { text-align: center; }
+  .kpi-val { font-size: 17px; font-weight: 800; }
+  .kpi-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .attend { font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; margin-top: 6px; }
+  .attend .leave-tag { color: var(--neon-leave); font-weight: 800; }
+
+  .toggle-daily { margin: 1.5rem 0 0.8rem; cursor: pointer; color: var(--neon-green); font-weight: 700; font-size: 14px; user-select: none; }
+  .daily-wrap { overflow-x: auto; display: none; }
+  .daily-wrap.show { display: block; }
+  table.daily { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+  table.daily th, table.daily td { padding: 7px 10px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.daily th { color: var(--muted); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; position: sticky; top: 0; background: var(--bg); }
+  table.daily td.name { text-align: left; font-weight: 700; }
+  .st-leave { color: var(--neon-leave); font-weight: 800; }
+  .empty { text-align: center; color: var(--muted); padding: 3rem; font-size: 15px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Elevate<span>Me</span> · History</div>
+  <div class="nav-links">
+    <a href="/" class="nav-btn">Dashboard</a>
+    <a href="/history.html" class="nav-btn active">History</a>
+    <a href="/attendance.html" class="nav-btn">Attendance</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="controls">
+    <div class="field"><label>Start date</label><input type="date" id="inp-start"></div>
+    <div class="field"><label>End date</label><input type="date" id="inp-end"></div>
+    <div class="field"><label>Role</label>
+      <select id="inp-role">
+        <option value="all">All</option>
+        <option value="Builder">Builders</option>
+        <option value="Closer">Closers</option>
+      </select>
+    </div>
+    <div class="field"><label>Team</label>
+      <select id="inp-team">
+        <option value="all">All Teams</option>
+        <option value="Soham">Soham</option>
+        <option value="Tejasvi">Tejasvi</option>
+        <option value="Mamta Das">Mamta Das</option>
+      </select>
+    </div>
+    <div class="field"><label>&nbsp;</label><button class="btn-gen" id="btn-gen">Generate</button></div>
+  </div>
+
+  <div class="presets" id="presets">
+    <div class="preset-btn" data-preset="week">This Week</div>
+    <div class="preset-btn active" data-preset="month">This Month</div>
+    <div class="preset-btn" data-preset="lastmonth">Last Month</div>
+    <div class="preset-btn" data-preset="7">Last 7 Days</div>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div id="results"></div>
+
+  <div class="toggle-daily" id="toggle-daily" style="display:none">▸ Show daily breakdown (raw saved data)</div>
+  <div class="daily-wrap" id="daily-wrap"></div>
+</div>
+
+<script>
+const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
+
+const TARGETS        = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
+const WEIGHTS        = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
+const TARGETS_CLOSER = { calls:60, minutes:120, presentations:2 };
+const WEIGHTS_CLOSER = { calls:0.40, minutes:0.20, presentations:0.40 };
+
+const ZONE_COLOR = { gold:"var(--neon-gold)", green:"var(--neon-green)", yellow:"var(--neon-yellow)", orange:"var(--neon-orange)", red:"var(--neon-red)" };
+const CARD_LABEL = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
+
+const zone = s => s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red";
+const cap  = (v,t) => Math.min(150, t>0 ? (v/t)*100 : 0);
+
+function scoreBuilder(b, t){
+  return Math.round(
+    cap(b.calls,t.calls)*WEIGHTS.calls + cap(b.minutes,t.minutes)*WEIGHTS.minutes +
+    cap(b.leads,t.leads)*WEIGHTS.leads + cap(b.discoveries,t.discoveries)*WEIGHTS.discoveries +
+    cap(b.presBooked,t.presBooked)*WEIGHTS.presBooked + cap(b.presCompleted,t.presCompleted)*WEIGHTS.presCompleted
+  );
+}
+function scoreCloser(c, t){
+  const k = cap(c.calls,t.calls)*WEIGHTS_CLOSER.calls + cap(c.minutes,t.minutes)*WEIGHTS_CLOSER.minutes +
+            cap(c.presentations,t.presentations)*WEIGHTS_CLOSER.presentations;
+  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(k*1.50,110),150));
+  if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(k*1.25,95),125));
+  return Math.round(Math.min(k,110));
+}
+
+const fmt = d => d.toISOString().split("T")[0];
+function todayEST(){ return new Date().toLocaleDateString("en-CA", { timeZone:"America/New_York" }); }
+
+function setPreset(kind){
+  const today = new Date(todayEST() + "T12:00:00Z");
+  let start = new Date(today), end = new Date(today);
+  if (kind === "week"){ const dow = (today.getUTCDay()+6)%7; start.setUTCDate(today.getUTCDate()-dow); }
+  else if (kind === "month"){ start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)); }
+  else if (kind === "lastmonth"){ start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth()-1, 1)); end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0)); }
+  else if (kind === "7"){ start.setUTCDate(today.getUTCDate()-6); }
+  document.getElementById("inp-start").value = fmt(start);
+  document.getElementById("inp-end").value   = fmt(end);
+}
+
+document.querySelectorAll(".preset-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    setPreset(btn.dataset.preset);
+    load();
+  };
+});
+
+function weekdaysBetween(start, end){
+  let n = 0; const d = new Date(start+"T12:00:00Z"), e = new Date(end+"T12:00:00Z");
+  while (d <= e){ const w = d.getUTCDay(); if (w!==0 && w!==6) n++; d.setUTCDate(d.getUTCDate()+1); }
+  return n;
+}
+
+async function fetchRows(start, end){
+  const url = `${SUPABASE_URL}/rest/v1/daily_kpi?date=gte.${start}&date=lte.${end}&select=*&order=date.asc,person_name.asc&limit=100000`;
+  const r = await fetch(url, { headers:{ apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}` } });
+  if (!r.ok) throw new Error("Supabase " + r.status);
+  return r.json();
+}
+
+function aggregate(rows){
+  const map = {};
+  rows.forEach(row => {
+    const id = row.person_id;
+    if (!map[id]) map[id] = {
+      id, name:row.person_name, role:row.role, tl:row.team_lead || "Unassigned",
+      calls:0, inbound:0, outbound:0, missed:0, minutes:0,
+      leads:0, discoveries:0, presBooked:0, presCompleted:0,
+      presentations:0, dealsClosed:0, newUpfront:0, futureUpfront:0,
+      days:0, leaveDays:0,
+    };
+    const m = map[id];
+    m.calls += row.calls; m.inbound += row.inbound; m.outbound += row.outbound; m.missed += row.missed;
+    m.minutes += row.minutes; m.leads += row.leads; m.discoveries += row.discoveries;
+    m.presBooked += row.pres_booked; m.presCompleted += row.pres_completed;
+    m.presentations += row.presentations; m.dealsClosed += row.deals_closed;
+    m.newUpfront += Number(row.new_upfront); m.futureUpfront += Number(row.future_upfront);
+    m.days += 1; if (row.on_leave) m.leaveDays += 1;
+  });
+  return Object.values(map);
+}
+
+function scoreFor(p){
+  const workDays = Math.max(0.1, p.days - p.leaveDays);
+  if (p.role === "Closer"){
+    const t = Object.fromEntries(Object.entries(TARGETS_CLOSER).map(([k,v]) => [k, v*workDays]));
+    return scoreCloser(p, t);
+  }
+  const t = Object.fromEntries(Object.entries(TARGETS).map(([k,v]) => [k, v*workDays]));
+  return scoreBuilder(p, t);
+}
+
+function card(p){
+  const onLeaveAll = (p.days > 0 && p.leaveDays >= p.days);
+  const s = onLeaveAll ? null : scoreFor(p);
+  const z = onLeaveAll ? "leave" : zone(s);
+  const color = onLeaveAll ? "var(--neon-leave)" : ZONE_COLOR[z];
+  const workDays = p.days - p.leaveDays;
+  const kpis = p.role === "Closer"
+    ? [["calls",p.calls],["mins",p.minutes],["pres",p.presentations],["deals",p.dealsClosed],["$new",Math.round(p.newUpfront)],["$fut",Math.round(p.futureUpfront)]]
+    : [["calls",p.calls],["mins",p.minutes],["leads",p.leads],["disco",p.discoveries],["pres.b",p.presBooked],["pres.c",p.presCompleted]];
+  return `<div class="card ${onLeaveAll?'leave':''}">
+    <div class="card-top">
+      <div><div class="card-name">${p.name}</div><div class="card-role">${p.role} · ${p.tl}</div></div>
+      <div style="text-align:right">
+        <div class="card-score" style="color:${color};text-shadow:0 0 12px ${color}">${onLeaveAll?'—':s+'%'}</div>
+        <div class="card-badge" style="color:${color};border-color:${color}">${onLeaveAll?'On Leave':CARD_LABEL[z]}</div>
+      </div>
+    </div>
+    <div class="kpis">
+      ${kpis.map(([l,v]) => `<div class="kpi"><div class="kpi-val">${v}</div><div class="kpi-lbl">${l}</div></div>`).join("")}
+    </div>
+    <div class="attend">
+      Attendance: <b style="color:var(--text)">${workDays}</b>/${p.days} days present
+      ${p.leaveDays>0 ? `· <span class="leave-tag">Leave: ${p.leaveDays}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderSummary(people){
+  const teams = ["Soham","Tejasvi","Mamta Das","Unassigned"];
+  let html = "";
+  teams.forEach(tl => {
+    const members = people.filter(p => p.tl === tl).sort((a,b) => (a.role<b.role?-1:1) || 0);
+    if (!members.length) return;
+    const present = members.filter(p => !(p.days>0 && p.leaveDays>=p.days));
+    const avg = present.length ? Math.round(present.reduce((s,p)=>s+scoreFor(p),0)/present.length) : 0;
+    const z = zone(avg); const color = ZONE_COLOR[z];
+    html += `<div class="team-block">
+      <div class="team-head">
+        <div class="team-name" style="color:${color}">${tl}</div>
+        <div class="team-avg">Avg Score <b style="color:${color}">${avg}%</b> · ${present.length} active · ${members.length} total</div>
+      </div>
+      <div class="cards">${members.map(card).join("")}</div>
+    </div>`;
+  });
+  return html;
+}
+
+function renderDaily(rows){
+  const head = ["Date","Name","Role","TL","Calls","In","Out","Miss","Mins","Leads","Disco","Pres.B","Pres.C","Pres","Deals","Score","Status"];
+  const body = rows.map(r => {
+    const status = r.on_leave ? `<span class="st-leave">Leave</span>`
+      : `<span style="color:${ZONE_COLOR[r.zone]||'var(--text)'}">${r.score}%</span>`;
+    return `<tr>
+      <td>${r.date}</td><td class="name">${r.person_name}</td><td>${r.role}</td><td>${r.team_lead||'—'}</td>
+      <td>${r.calls}</td><td>${r.inbound}</td><td>${r.outbound}</td><td>${r.missed}</td><td>${r.minutes}</td>
+      <td>${r.leads}</td><td>${r.discoveries}</td><td>${r.pres_booked}</td><td>${r.pres_completed}</td>
+      <td>${r.presentations}</td><td>${r.deals_closed}</td><td>${status}</td>
+    </tr>`;
+  }).join("");
+  return `<table class="daily"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function load(){
+  const start = document.getElementById("inp-start").value;
+  const end   = document.getElementById("inp-end").value;
+  const role  = document.getElementById("inp-role").value;
+  const team  = document.getElementById("inp-team").value;
+  if (!start || !end) return;
+  const btn = document.getElementById("btn-gen");
+  btn.disabled = true; btn.textContent = "Loading...";
+  document.getElementById("status").textContent = "Loading saved data…";
+  try {
+    let rows = await fetchRows(start, end);
+    if (role !== "all") rows = rows.filter(r => r.role === role);
+    if (team !== "all") rows = rows.filter(r => (r.team_lead||"") === team);
+
+    const wd = weekdaysBetween(start, end);
+    document.getElementById("status").textContent =
+      `${rows.length} daily records · ${start} → ${end} · ${wd} weekdays`;
+
+    if (!rows.length){
+      document.getElementById("results").innerHTML = `<div class="empty">Is range mein koi saved data nahi mila. (Snapshot sirf backfilled/collected dates ka hota hai.)</div>`;
+      document.getElementById("daily-wrap").innerHTML = "";
+      document.getElementById("toggle-daily").style.display = "none";
+      return;
+    }
+    const people = aggregate(rows);
+    document.getElementById("results").innerHTML = renderSummary(people);
+    document.getElementById("daily-wrap").innerHTML = renderDaily(rows);
+    document.getElementById("toggle-daily").style.display = "block";
+  } catch(e){
+    document.getElementById("status").textContent = "Error: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Generate";
+  }
+}
+
+document.getElementById("btn-gen").onclick = load;
+document.getElementById("toggle-daily").onclick = function(){
+  const w = document.getElementById("daily-wrap");
+  w.classList.toggle("show");
+  this.textContent = (w.classList.contains("show") ? "▾ Hide" : "▸ Show") + " daily breakdown (raw saved data)";
+};
+
+// init
+setPreset("month");
+load();
+</script>
+</body>
+</html>
