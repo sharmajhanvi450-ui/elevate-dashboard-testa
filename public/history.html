@@ -112,6 +112,9 @@
         <option value="Mamta Das">Mamta Das</option>
       </select>
     </div>
+    <div class="field"><label>Person</label>
+      <select id="inp-person"><option value="all">All People</option></select>
+    </div>
     <div class="field"><label>&nbsp;</label><button class="btn-gen" id="btn-gen">Generate</button></div>
   </div>
 
@@ -289,34 +292,58 @@ function renderDaily(rows){
   return `<table class="daily"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+let _rawRows = [];   // last fetched range (unfiltered)
+let _range = { start:"", end:"" };
+
+// Rebuild the Person dropdown from fetched data (preserve current selection)
+function populatePersons(){
+  const sel = document.getElementById("inp-person");
+  const cur = sel.value;
+  const names = [...new Set(_rawRows.map(r => r.person_name))].sort();
+  sel.innerHTML = `<option value="all">All People</option>` +
+    names.map(n => `<option value="${n}">${n}</option>`).join("");
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+// Apply Role / Team / Person filters to cached rows and re-render (no refetch)
+function applyAndRender(){
+  const role   = document.getElementById("inp-role").value;
+  const team   = document.getElementById("inp-team").value;
+  const person = document.getElementById("inp-person").value;
+
+  let rows = _rawRows.slice();
+  if (role   !== "all") rows = rows.filter(r => r.role === role);
+  if (team   !== "all") rows = rows.filter(r => (r.team_lead||"") === team);
+  if (person !== "all") rows = rows.filter(r => r.person_name === person);
+
+  const wd = weekdaysBetween(_range.start, _range.end);
+  document.getElementById("status").textContent =
+    `${rows.length} daily records · ${_range.start} → ${_range.end} · ${wd} weekdays`
+    + (person !== "all" ? ` · ${person}` : "");
+
+  if (!rows.length){
+    document.getElementById("results").innerHTML = `<div class="empty">Is filter/range mein koi saved data nahi mila.</div>`;
+    document.getElementById("daily-wrap").innerHTML = "";
+    document.getElementById("toggle-daily").style.display = "none";
+    return;
+  }
+  document.getElementById("results").innerHTML = renderSummary(aggregate(rows));
+  document.getElementById("daily-wrap").innerHTML = renderDaily(rows);
+  document.getElementById("toggle-daily").style.display = "block";
+}
+
 async function load(){
   const start = document.getElementById("inp-start").value;
   const end   = document.getElementById("inp-end").value;
-  const role  = document.getElementById("inp-role").value;
-  const team  = document.getElementById("inp-team").value;
   if (!start || !end) return;
   const btn = document.getElementById("btn-gen");
   btn.disabled = true; btn.textContent = "Loading...";
   document.getElementById("status").textContent = "Loading saved data…";
   try {
-    let rows = await fetchRows(start, end);
-    if (role !== "all") rows = rows.filter(r => r.role === role);
-    if (team !== "all") rows = rows.filter(r => (r.team_lead||"") === team);
-
-    const wd = weekdaysBetween(start, end);
-    document.getElementById("status").textContent =
-      `${rows.length} daily records · ${start} → ${end} · ${wd} weekdays`;
-
-    if (!rows.length){
-      document.getElementById("results").innerHTML = `<div class="empty">Is range mein koi saved data nahi mila. (Snapshot sirf backfilled/collected dates ka hota hai.)</div>`;
-      document.getElementById("daily-wrap").innerHTML = "";
-      document.getElementById("toggle-daily").style.display = "none";
-      return;
-    }
-    const people = aggregate(rows);
-    document.getElementById("results").innerHTML = renderSummary(people);
-    document.getElementById("daily-wrap").innerHTML = renderDaily(rows);
-    document.getElementById("toggle-daily").style.display = "block";
+    _rawRows = await fetchRows(start, end);
+    _range = { start, end };
+    populatePersons();
+    applyAndRender();
   } catch(e){
     document.getElementById("status").textContent = "Error: " + e.message;
   } finally {
@@ -325,6 +352,9 @@ async function load(){
 }
 
 document.getElementById("btn-gen").onclick = load;
+// Filter changes just re-render from cache — no server round-trip
+["inp-role","inp-team","inp-person"].forEach(id =>
+  document.getElementById(id).addEventListener("change", applyAndRender));
 document.getElementById("toggle-daily").onclick = function(){
   const w = document.getElementById("daily-wrap");
   w.classList.toggle("show");
