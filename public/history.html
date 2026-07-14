@@ -141,7 +141,8 @@ const WEIGHTS        = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15,
 const TARGETS_CLOSER = { calls:60, minutes:120, presentations:2 };
 const WEIGHTS_CLOSER = { calls:0.40, minutes:0.20, presentations:0.40 };
 
-const ZONE_COLOR = { gold:"var(--neon-gold)", green:"var(--neon-green)", yellow:"var(--neon-yellow)", orange:"var(--neon-orange)", red:"var(--neon-red)" };
+// Match the main dashboard's runtime zone colours exactly (note red = #ff4d6a)
+const ZONE_COLOR = { gold:"#ffd740", green:"#00e676", yellow:"#ffab00", orange:"#ff6d00", red:"#ff4d6a" };
 const CARD_LABEL = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
 
 const zone = s => s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red";
