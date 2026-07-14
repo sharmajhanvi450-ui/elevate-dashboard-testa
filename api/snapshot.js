@@ -92,30 +92,32 @@ function parseZohoDate(val){
   try { const d = new Date(val + " UTC"); return isNaN(d) ? null : d.toISOString().split("T")[0]; }
   catch { return null; }
 }
-// All Calls whose Call_Start_Time falls on `date` (IST day).
-// Uses COQL with a datetime `between` filter so ANY date works regardless of
-// age — the old newest-first pagination could not reach far-back dates.
-async function fetchCallsForDay(token, date){
-  const dayStart = `${date}T00:00:00+05:30`;
-  const dayEnd   = `${date}T23:59:59+05:30`;
+// All Calls whose Call_Start_Time is on `date`.
+// Zoho /search only supports `equals` on Call_Start_Time (no range/COQL scope),
+// so we page Calls newest-first and stop once we pass the target date. This is
+// cheap for recent dates (daily cron) but cannot reach far-back dates — for
+// historical backfill a COQL-scoped token is required (see notes).
+async function fetchCallsForDay(token, date, fields){
   const all = [];
-  let offset = 0;
-  while (true){
-    const q = `SELECT Owner, Call_Duration_in_seconds, Call_Start_Time, Call_Type, Call_Status `
-            + `FROM Calls WHERE Call_Start_Time between '${dayStart}' and '${dayEnd}' `
-            + `LIMIT ${offset}, 200`;
-    const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
-      method:"POST",
-      headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" },
-      body: JSON.stringify({ select_query: q }),
-    });
-    if (r.status === 204) break;
-    const data = await r.json();
-    if (!data?.data?.length) break;
-    all.push(...data.data);
-    if (!data.info?.more_records) break;
-    offset += 200;
-    if (offset >= 2000) break; // COQL offset ceiling — safety
+  const BATCH = 5;
+  for (let start = 1; start <= 200; start += BATCH){
+    const pages = Array.from({ length: BATCH }, (_, i) => start + i);
+    const results = await Promise.all(pages.map(p =>
+      fetch(`${API_DOMAIN}/crm/v2/Calls?fields=${fields}&per_page=200&page=${p}&sort_by=Call_Start_Time&sort_order=desc`,
+        { headers:{ Authorization:`Zoho-oauthtoken ${token}` } }).then(r => r.json())
+    ));
+    let done = false;
+    for (const data of results){
+      if (!data?.data?.length){ done = true; break; }
+      for (const rec of data.data){
+        const d = parseZohoDate(rec.Call_Start_Time);
+        if (d === date) all.push(rec);
+      }
+      const oldest = parseZohoDate(data.data.at(-1)?.Call_Start_Time);
+      if (oldest && oldest < date){ done = true; break; }
+      if (!data.info?.more_records){ done = true; break; }
+    }
+    if (done) break;
   }
   return all;
 }
@@ -178,10 +180,11 @@ async function snapshotDay(date){
     else if (rn.includes("Builder")) builderMap[u.id] = { ...base, leads:0, discoveries:0, presBooked:0, presCompleted:0, dealsClosed:0 };
   });
 
+  const CF = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
   const [calls, presHeld, closedDeals, upfrontDeals,
          leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC, builderClosedDeals, leaveNames] =
     await Promise.all([
-      fetchCallsForDay(token, date),
+      fetchCallsForDay(token, date, CF),
       fetchByDay(token, "Deals", "Owner,Team_Lead",                       date, "Presentation_Completed_Date"),
       fetchByDay(token, "Deals", "Owner,Future_Booked_Upfront,Team_Lead", date, "Deal_Closed_Date"),
       fetchByDay(token, "Deals", "Owner,Upfront_Amount,Team_Lead",        date, "Upfront_Amount_Received_Date"),
