@@ -23,7 +23,7 @@ export default async function handler(req, res){
   const date = req.query.date || "2026-06-01";
   try {
     const token = await getToken();
-    const crit = `((Call_Start_Time:greater_equal:${date}T00:00:00+05:30)and(Call_Start_Time:less_equal:${date}T23:59:59+05:30))`;
+    const crit = `(Call_Start_Time:equals:${date})`;
     const url = `${API_DOMAIN}/crm/v2/Calls/search?fields=Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status`
               + `&criteria=${encodeURIComponent(crit)}&per_page=5&page=1`;
     const r = await fetch(url, { headers:{ Authorization:`Zoho-oauthtoken ${token}` } });
