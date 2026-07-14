@@ -23,16 +23,13 @@ export default async function handler(req, res){
   const date = req.query.date || "2026-06-01";
   try {
     const token = await getToken();
-    const q = `SELECT Owner, Call_Duration_in_seconds, Call_Start_Time, Call_Type, Call_Status `
-            + `FROM Calls WHERE Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T23:59:59+05:30' LIMIT 0, 5`;
-    const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
-      method:"POST",
-      headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" },
-      body: JSON.stringify({ select_query: q }),
-    });
+    const crit = `(Call_Start_Time:between:${date}T00:00:00+05:30,${date}T23:59:59+05:30)`;
+    const url = `${API_DOMAIN}/crm/v2/Calls/search?fields=Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status`
+              + `&criteria=${encodeURIComponent(crit)}&per_page=5&page=1`;
+    const r = await fetch(url, { headers:{ Authorization:`Zoho-oauthtoken ${token}` } });
     const status = r.status;
-    let body; try { body = await r.json(); } catch { body = await r.text(); }
-    return res.status(200).json({ date, coql_status: status, query: q, response: body });
+    let body; if (status === 204) body = "(204 no content)"; else { try { body = await r.json(); } catch { body = await r.text(); } }
+    return res.status(200).json({ date, search_status: status, criteria: crit, count: body?.data?.length ?? 0, response: body });
   } catch(e){
     return res.status(500).json({ error: String(e?.message || e) });
   }
