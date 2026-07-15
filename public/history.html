@@ -27,8 +27,9 @@
     background: #000; border-bottom: 1px solid var(--border);
     padding: 14px 24px; position: sticky; top: 0; z-index: 100;
   }
-  .logo { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
-  .logo span { color: var(--neon-green); }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-img { height: 36px; width: auto; display: block; }
+  .logo-sub { font-size: 15px; font-weight: 400; color: #888; letter-spacing: 0.2px; }
   .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
   .nav-btn { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--muted);
     text-decoration: none; border: 1px solid var(--border); background: var(--surface); }
@@ -85,7 +86,10 @@
 </head>
 <body>
 <header>
-  <div class="logo">Elevate<span>Me</span> · History</div>
+  <div class="logo">
+    <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
+    <span class="logo-sub">Performance History</span>
+  </div>
   <div class="nav-links">
     <a href="/" class="nav-btn">Dashboard</a>
     <a href="/history.html" class="nav-btn active">History</a>
