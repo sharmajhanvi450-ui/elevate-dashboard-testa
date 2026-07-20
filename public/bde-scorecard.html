@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElevateMe — BDE Scorecard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080b14; --surface: #0f1322; --border: #1e2640;
+    --text: #e8eaf6; --muted: #6b7499;
+    --gold:#ffd740; --green:#00e676; --yellow:#ffab00; --orange:#ff6d00; --red:#ff4d6a;
+  }
+  body { background: var(--bg); color: var(--text); font-family:'Nunito Sans',sans-serif; min-height:100vh;
+    background-image: radial-gradient(ellipse at 20% 10%, rgba(196,72,56,0.06) 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, rgba(0,230,118,0.04) 0%, transparent 50%); }
+  header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+    background:#000; border-bottom:1px solid var(--border); padding:14px 24px; position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-img { height:36px; width:auto; display:block; }
+  .logo-sub { font-size:15px; font-weight:400; color:#888; letter-spacing:0.2px; }
+  .nav-links { display:flex; gap:8px; flex-wrap:wrap; }
+  .nav-btn { padding:7px 14px; border-radius:8px; font-size:13px; font-weight:700; color:var(--muted);
+    text-decoration:none; border:1px solid var(--border); background:var(--surface); }
+  .nav-btn.active, .nav-btn:hover { color:var(--text); border-color:var(--green); }
+  .container { width:100%; padding:1.5rem; max-width:1500px; margin:0 auto; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:1rem; align-items:end; }
+  .field label { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .field input { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:inherit; font-size:14px; }
+  .presets { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1.2rem; }
+  .preset-btn { padding:7px 14px; border-radius:20px; font-size:12px; font-weight:700; background:var(--surface); border:1px solid var(--border); color:var(--muted); cursor:pointer; }
+  .preset-btn.active { color:#000; background:var(--green); border-color:var(--green); }
+  .btn-gen { padding:10px 20px; border-radius:8px; font-weight:800; font-size:14px; background:var(--green); color:#000; border:none; cursor:pointer; }
+  .btn-gen:disabled { opacity:.5; cursor:default; }
+  .status { font-size:13px; color:var(--muted); margin-bottom:1rem; min-height:18px; }
+
+  .team-block { margin-bottom:2rem; }
+  .team-head { display:flex; align-items:baseline; gap:12px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .team-name { font-size:20px; font-weight:800; }
+  .team-avg { font-size:14px; color:var(--muted); }
+  .team-avg b { font-size:18px; }
+  .team-kpi-note { font-size:12px; color:var(--muted); margin-left:auto; }
+
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px; position:relative; }
+  .card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+  .card-id { display:flex; align-items:center; gap:12px; }
+  .avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; border:2px solid; background:#1a1f30; }
+  .card-name { font-size:16px; font-weight:800; }
+  .card-role { font-size:12px; color:var(--muted); }
+  .card-score { font-size:30px; font-weight:800; line-height:1; }
+  .card-badge { display:inline-block; font-size:11px; font-weight:800; padding:3px 10px; border-radius:12px; border:1px solid; margin-top:6px; }
+  .kpi-row { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--border); font-size:13px; }
+  .kpi-row:first-of-type { border-top:none; }
+  .kpi-name { color:var(--text); font-weight:600; }
+  .kpi-name small { color:var(--muted); font-weight:400; }
+  .kpi-av { font-weight:800; }
+  .kpi-pct { font-weight:800; min-width:52px; text-align:right; }
+  .bar { height:5px; border-radius:3px; background:#1a1f30; overflow:hidden; margin-top:3px; grid-column:1 / -1; }
+  .bar > div { height:100%; border-radius:3px; }
+  .empty { text-align:center; color:var(--muted); padding:3rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
+    <span class="logo-sub">BDE Scorecard</span>
+  </div>
+  <div class="nav-links">
+    <a href="/" class="nav-btn">Dashboard</a>
+    <a href="/bde.html" class="nav-btn">BD Funnel</a>
+    <a href="/bde-scorecard.html" class="nav-btn active">BD Scorecard</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="controls">
+    <div class="field"><label>Start date</label><input type="date" id="inp-start"></div>
+    <div class="field"><label>End date</label><input type="date" id="inp-end"></div>
+    <div class="field"><label>&nbsp;</label><button class="btn-gen" id="btn-gen">Generate</button></div>
+  </div>
+  <div class="presets" id="presets">
+    <div class="preset-btn" data-preset="today">Today</div>
+    <div class="preset-btn" data-preset="week">This Week</div>
+    <div class="preset-btn active" data-preset="month">This Month</div>
+    <div class="preset-btn" data-preset="lastmonth">Last Month</div>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="results"></div>
+</div>
+
+<script>
+// ── Team scorecard config ────────────────────────────────────────────────────
+// Each team: members (exact CRM names) + KPIs. Each KPI: how to read the actual
+// value from a BDE record, its daily target, and its weight (weights sum to 1).
+const TEAMS = [
+  {
+    name: "LinkedIn Team",
+    role: "LinkedIn BDE",
+    members: ["Ronak Khant", "Jiya Chandrawanshi", "Bhoomi Barot", "Heer Nakum"],
+    kpis: [
+      { label: "ICP Moderate", note: "Leads Generated", get: b => (b.types||{})["ICP Moderate"]||0, dailyTarget: 4,  weight: 0.70 },
+      { label: "ICP Cold",     note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0,     dailyTarget: 15, weight: 0.30 },
+    ],
+  },
+];
+
+const ZONE = s => s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red";
+const ZCOL = { gold:"var(--gold)", green:"var(--green)", yellow:"var(--yellow)", orange:"var(--orange)", red:"var(--red)" };
+const ZLBL = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
+
+const fmt = d => d.toISOString().split("T")[0];
+const todayEST = () => new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"});
+
+function setPreset(kind){
+  const today = new Date(todayEST()+"T12:00:00Z");
+  let start = new Date(today), end = new Date(today);
+  if (kind==="week"){ const dow=(today.getUTCDay()+6)%7; start.setUTCDate(today.getUTCDate()-dow); }
+  else if (kind==="month"){ start = new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),1)); }
+  else if (kind==="lastmonth"){ start=new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth()-1,1)); end=new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),0)); }
+  document.getElementById("inp-start").value = fmt(start);
+  document.getElementById("inp-end").value   = fmt(end);
+}
+document.querySelectorAll(".preset-btn").forEach(btn => btn.onclick = () => {
+  document.querySelectorAll(".preset-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active"); setPreset(btn.dataset.preset); load();
+});
+
+function workingDays(start,end){
+  let n=0; const d=new Date(start+"T12:00:00Z"), e=new Date(end+"T12:00:00Z");
+  while(d<=e){ const w=d.getUTCDay(); if(w!==0&&w!==6)n++; d.setUTCDate(d.getUTCDate()+1); }
+  return Math.max(1,n);
+}
+
+function scoreMember(member, kpis, bmap, wDays){
+  const b = bmap[member.toLowerCase()] || {};
+  let score = 0;
+  const rows = kpis.map(k => {
+    const actual = k.get(b);
+    const target = Math.round(k.dailyTarget * wDays);
+    const pct = target>0 ? Math.min(150, actual/target*100) : 0;
+    score += pct * k.weight;
+    return { label:k.label, note:k.note, actual, target, pct:Math.round(pct), weight:k.weight };
+  });
+  return { score: Math.round(score), rows };
+}
+
+function tile(member, role, kpis, bmap, wDays){
+  const { score, rows } = scoreMember(member, kpis, bmap, wDays);
+  const z = ZONE(score); const col = ZCOL[z];
+  const initials = member.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return `<div class="card">
+    <div class="card-top">
+      <div class="card-id">
+        <div class="avatar" style="color:${col};border-color:${col}">${initials}</div>
+        <div><div class="card-name">${member}</div><div class="card-role">${role}</div></div>
+      </div>
+      <div style="text-align:right">
+        <div class="card-score" style="color:${col};text-shadow:0 0 12px ${col}">${score}%</div>
+        <div class="card-badge" style="color:${col};border-color:${col}">${ZLBL[z]}</div>
+      </div>
+    </div>
+    ${rows.map(r=>{
+      const rc = r.pct>=110?"var(--gold)":r.pct>=95?"var(--green)":r.pct>=75?"var(--yellow)":r.pct>=50?"var(--orange)":"var(--red)";
+      return `<div class="kpi-row">
+        <div class="kpi-name">${r.label} <small>· ${r.note} · ${Math.round(r.weight*100)}%</small></div>
+        <div class="kpi-av">${r.actual}<span style="color:var(--muted);font-weight:400">/${r.target}</span></div>
+        <div class="kpi-pct" style="color:${rc}">${r.pct}%</div>
+        <div class="bar"><div style="width:${Math.min(100,r.pct)}%;background:${rc}"></div></div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function render(bdes, start, end){
+  const wDays = workingDays(start, end);
+  const bmap = {};
+  bdes.forEach(b => { bmap[(b.name||"").toLowerCase()] = b; });
+  let html = "";
+  TEAMS.forEach(team => {
+    const scores = team.members.map(m => scoreMember(m, team.kpis, bmap, wDays).score);
+    const avg = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0;
+    const z = ZONE(avg); const col = ZCOL[z];
+    const kpiNote = team.kpis.map(k=>`${k.label} ${k.dailyTarget}/day (${Math.round(k.weight*100)}%)`).join(" · ");
+    html += `<div class="team-block">
+      <div class="team-head">
+        <div class="team-name" style="color:${col}">${team.name}</div>
+        <div class="team-avg">Avg Score <b style="color:${col}">${avg}%</b></div>
+        <div class="team-kpi-note">${kpiNote} · ${wDays} working days</div>
+      </div>
+      <div class="cards">${team.members.map(m => tile(m, team.role, team.kpis, bmap, wDays)).join("")}</div>
+    </div>`;
+  });
+  document.getElementById("results").innerHTML = html;
+}
+
+async function load(){
+  const start = document.getElementById("inp-start").value;
+  const end   = document.getElementById("inp-end").value;
+  if (!start || !end) return;
+  const btn = document.getElementById("btn-gen");
+  btn.disabled = true; btn.textContent = "Loading...";
+  document.getElementById("status").textContent = "Fetching BDE data from Zoho…";
+  try {
+    const res = await fetch(`/api/bde?startDate=${start}&endDate=${end}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+    const cache = res.headers.get("X-Cache")==="HIT";
+    document.getElementById("status").textContent =
+      `${start} → ${end} · ${workingDays(start,end)} working days · ${cache?"cache ⚡":"live from Zoho"}`;
+    render(data.bdes || [], start, end);
+  } catch(e){
+    document.getElementById("status").textContent = "Error: " + e.message;
+    document.getElementById("results").innerHTML = `<div class="empty">${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = "Generate";
+  }
+}
+document.getElementById("btn-gen").onclick = load;
+
+setPreset("month");
+load();
+</script>
+</body>
+</html>
