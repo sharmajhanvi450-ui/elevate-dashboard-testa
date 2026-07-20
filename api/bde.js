@@ -205,6 +205,15 @@ export default async function handler(req, res) {
     };
 
     const result = { bdes, referral, startDate, endDate };
+    if (req.query.debug) {
+      const icp = r => isICP(normalizeType(r.Lead_Type));
+      result._debug = {
+        generated:    { leads: genLeads.length, contacts: genContacts.length, deals: genDeals.length },
+        generatedICP: { leads: genLeads.filter(icp).length, contacts: genContacts.filter(icp).length, deals: genDeals.filter(icp).length },
+        sampleLead: genLeads[0] || null, sampleContact: genContacts[0] || null, sampleDeal: genDeals[0] || null,
+      };
+      return res.status(200).json(result);  // skip cache when debugging
+    }
     setCached(cacheKey, result).catch(() => {});
     return res.status(200).json(result);
 
