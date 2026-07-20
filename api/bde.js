@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       connLeads, connContacts,
       qualLeads, qualContacts, qualDeals,
       discoLeads, discoContacts, discoDeals,
-      presBooked, presHeld
+      presBooked, presHeld, enrollments
     ] = await Promise.all([
       fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "Lead_Generated_Date"),
       fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "Lead_Generated_Date"),
@@ -119,6 +119,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Discovery_Completed_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Booked_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Completed_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "New_Upfront_Collected_Date"),
     ]);
 
     // Normalize lead type
@@ -150,11 +151,11 @@ export default async function handler(req, res) {
     function getRawSource(r) { return r.Lead_Source_BDE || ""; }
     function getRawType(r)   { return r.Lead_Type || ""; }
 
-    const emptyFunnel = () => ({ generated:0, touched:0, connected:0, qualified:0, discovery:0, presBooked:0, presHeld:0 });
+    const emptyFunnel = () => ({ generated:0, touched:0, connected:0, qualified:0, discovery:0, presBooked:0, presHeld:0, enrolled:0 });
     function ensure(bde) {
       const k = key(bde); if (!k) return;
       if (!map[k]) map[k] = {
-        name: bde.trim(), generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
+        name: bde.trim(), generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0, enrolled: 0,
         cur: emptyFunnel(), old: emptyFunnel(),   // funnel split by lead-generation cohort
         sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
         types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
@@ -200,6 +201,7 @@ export default async function handler(req, res) {
     discoDeals.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"discovery",r); });
     presBooked.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"presBooked",r); });
     presHeld.forEach(r =>   { const b=getBDE(r); ensure(b); incStage(b,"presHeld",r); });
+    enrollments.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"enrolled",r); });
 
     const bdes = Object.values(map).sort((a,b) => b.generated - a.generated);
 
@@ -213,6 +215,7 @@ export default async function handler(req, res) {
       discovery:  [...discoLeads,...discoContacts,...discoDeals].filter(isRef).length,
       presBooked: presBooked.filter(isRef).length,
       presHeld:   presHeld.filter(isRef).length,
+      enrolled:   enrollments.filter(isRef).length,
     };
 
     const result = { bdes, referral, startDate, endDate };
