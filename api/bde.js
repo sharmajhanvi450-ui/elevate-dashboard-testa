@@ -91,9 +91,9 @@ export default async function handler(req, res) {
     const token = await getAccessToken();
     // BDE attribution field differs by module: Leads use BDE_Name_1, while
     // Contacts and Deals use BDE_Name1 (no underscore).
-    const F_L = "id,BDE_Name_1,Lead_Source_BDE,Lead_Type";  // Leads
-    const F_C = "id,BDE_Name1,Lead_Source_BDE,Lead_Type";   // Contacts
-    const F_D = "id,BDE_Name1,Lead_Source_BDE,Lead_Type";   // Deals
+    const F_L = "id,BDE_Name_1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";  // Leads
+    const F_C = "id,BDE_Name1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";   // Contacts
+    const F_D = "id,BDE_Name1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";   // Deals
 
     const [
       genLeads, genContacts, genDeals,
@@ -150,16 +150,24 @@ export default async function handler(req, res) {
     function getRawSource(r) { return r.Lead_Source_BDE || ""; }
     function getRawType(r)   { return r.Lead_Type || ""; }
 
+    const emptyFunnel = () => ({ generated:0, touched:0, connected:0, qualified:0, discovery:0, presBooked:0, presHeld:0 });
     function ensure(bde) {
       const k = key(bde); if (!k) return;
       if (!map[k]) map[k] = {
         name: bde.trim(), generated: 0, touched: 0, connected: 0, qualified: 0, discovery: 0, presBooked: 0, presHeld: 0,
+        cur: emptyFunnel(), old: emptyFunnel(),   // funnel split by lead-generation cohort
         sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
         types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
         linkedInICP: 0
       };
     }
+    // A record is "current" if its lead was generated within the selected period
+    // (Lead_Generated_Date >= startDate); otherwise it's carried-over "old" data.
+    function genDate(r){ const v = r.Lead_Generated_Date; if(!v) return null; const m = String(v).match(/^\d{4}-\d{2}-\d{2}/); return m ? m[0] : null; }
+    function cohort(r){ const g = genDate(r); return (g && g >= startDate) ? "cur" : "old"; }
     function inc(bde, field) { const k=key(bde); if (k && map[k]) map[k][field]++; }
+    // increment a funnel stage on both the flat total and the cur/old cohort
+    function incStage(bde, field, r) { const k=key(bde); if (!k || !map[k]) return; map[k][field]++; map[k][cohort(r)][field]++; }
     function incSub(bde, field, fkey) {
       const k=key(bde); if (!k || !map[k]) return;
       map[k][field][fkey] = (map[k][field][fkey] || 0) + 1;
@@ -168,7 +176,7 @@ export default async function handler(req, res) {
     function isICP(typ) { return typ.startsWith("ICP "); }
 
     [...genLeads, ...genContacts].forEach(r => {
-      const b = getBDE(r); ensure(b); inc(b,"generated");
+      const b = getBDE(r); ensure(b); incStage(b,"generated",r);
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
@@ -176,22 +184,22 @@ export default async function handler(req, res) {
       if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
     genDeals.forEach(r => {
-      const b = getBDE(r); ensure(b); inc(b,"generated");
+      const b = getBDE(r); ensure(b); incStage(b,"generated",r);
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
       if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
-    [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"touched"); });
-    touchedDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"touched"); });
-    [...connLeads,...connContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"connected"); });
-    [...qualLeads,...qualContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"qualified"); });
-    qualDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"qualified"); });
-    [...discoLeads,...discoContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"discovery"); });
-    discoDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"discovery"); });
-    presBooked.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"presBooked"); });
-    presHeld.forEach(r =>   { const b=getBDE(r); ensure(b); inc(b,"presHeld"); });
+    [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"touched",r); });
+    touchedDeals.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"touched",r); });
+    [...connLeads,...connContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"connected",r); });
+    [...qualLeads,...qualContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"qualified",r); });
+    qualDeals.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"qualified",r); });
+    [...discoLeads,...discoContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"discovery",r); });
+    discoDeals.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"discovery",r); });
+    presBooked.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"presBooked",r); });
+    presHeld.forEach(r =>   { const b=getBDE(r); ensure(b); incStage(b,"presHeld",r); });
 
     const bdes = Object.values(map).sort((a,b) => b.generated - a.generated);
 

@@ -61,6 +61,13 @@
   .kpi-pct { font-weight:800; min-width:52px; text-align:right; }
   .bar { height:5px; border-radius:3px; background:#1a1f30; overflow:hidden; margin-top:3px; grid-column:1 / -1; }
   .bar > div { height:100%; border-radius:3px; }
+  .funnel-sec { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
+  .funnel-sec h5 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .fn-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; font-size:12.5px; padding:3px 0; align-items:center; }
+  .fn-row.fn-head { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+  .fn-lbl { color:var(--text); }
+  .fn-cur { font-weight:800; text-align:right; min-width:40px; }
+  .fn-old { color:var(--muted); text-align:right; min-width:40px; }
   .empty { text-align:center; color:var(--muted); padding:3rem; }
 </style>
 </head>
@@ -149,8 +156,27 @@ function scoreMember(member, kpis, bmap, wDays){
   return { score: Math.round(score), rows };
 }
 
+const FUNNEL_STAGES = [
+  ["Generated","generated"], ["Touched","touched"], ["Connected","connected"],
+  ["Qualified","qualified"], ["Discovery","discovery"],
+  ["Pres. Booked","presBooked"], ["Pres. Held","presHeld"],
+];
+function funnelSection(b){
+  const cur = b.cur || {}, old = b.old || {};
+  return `<div class="funnel-sec">
+    <h5>Funnel — Lead Generated cohort</h5>
+    <div class="fn-row fn-head"><div class="fn-lbl">Stage</div><div class="fn-cur">This Month</div><div class="fn-old">Old</div></div>
+    ${FUNNEL_STAGES.map(([lbl,k]) => `<div class="fn-row">
+      <div class="fn-lbl">${lbl}</div>
+      <div class="fn-cur" style="color:var(--green)">${cur[k]||0}</div>
+      <div class="fn-old">${old[k]||0}</div>
+    </div>`).join("")}
+  </div>`;
+}
+
 function tile(member, role, kpis, bmap, wDays){
   const { score, rows } = scoreMember(member, kpis, bmap, wDays);
+  const b = bmap[member.toLowerCase()] || {};
   const z = ZONE(score); const col = ZCOL[z];
   const initials = member.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   return `<div class="card">
@@ -173,6 +199,7 @@ function tile(member, role, kpis, bmap, wDays){
         <div class="bar"><div style="width:${Math.min(100,r.pct)}%;background:${rc}"></div></div>
       </div>`;
     }).join("")}
+    ${funnelSection(b)}
   </div>`;
 }
 
