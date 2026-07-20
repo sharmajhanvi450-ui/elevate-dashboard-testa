@@ -107,7 +107,15 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
-    const commonFields = "id,Team_Lead";
+    const commonFields = "id,Team_Lead,Owner";
+
+    // Records owned by these generic accounts are excluded from the funnel entirely
+    const EXCLUDE_OWNERS = new Set([
+      "bdteamleaders@elevateme.pro",
+      "bde@elevateme.pro",
+      "admissions@elevateme.pro",
+    ]);
+    const keep = arr => arr.filter(r => !EXCLUDE_OWNERS.has((r.Owner?.email || "").toLowerCase()));
 
     // Build filter criteria strings
     function lcCriteria(extra) {
@@ -134,7 +142,7 @@ export default async function handler(req, res) {
       qualLeads,  qualContacts,  qualDeals,
       discoLeads, discoContacts, discoDeals,
       presBooked, presHeld, closedDeals
-    ] = await Promise.all([
+    ] = (await Promise.all([
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "Lead_Assigned_Date",        lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "Lead_Assigned_Date",        lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Lead_Assigned_Date",        dCriteria()),
@@ -152,7 +160,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Booked_Date",  dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Completed_Date", dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage:equals:Closed Won")),
-    ]);
+    ])).map(keep);
 
     const funnel = [
       { stage: "Leads Assigned",  count: assignedLeads.length  + assignedContacts.length  + assignedDeals.length,  icon: "👥" },
