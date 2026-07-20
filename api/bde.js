@@ -119,7 +119,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Discovery_Completed_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Booked_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Completed_Date"),
-      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "New_Upfront_Collected_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Upfront_Amount_Received_Date"),
     ]);
 
     // Normalize lead type
