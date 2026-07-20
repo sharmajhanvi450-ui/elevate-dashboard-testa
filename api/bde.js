@@ -89,8 +89,11 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
-    const F_LC = "id,BDE_Name_1,Lead_Source_BDE,Lead_Type";
-    const F_D  = "id,BDE_Name,Lead_Source_BDE,Lead_Type";
+    // BDE attribution field differs by module: Leads use BDE_Name_1, while
+    // Contacts and Deals use BDE_Name1 (no underscore).
+    const F_L = "id,BDE_Name_1,Lead_Source_BDE,Lead_Type";  // Leads
+    const F_C = "id,BDE_Name1,Lead_Source_BDE,Lead_Type";   // Contacts
+    const F_D = "id,BDE_Name1,Lead_Source_BDE,Lead_Type";   // Deals
 
     const [
       genLeads, genContacts, genDeals,
@@ -100,22 +103,22 @@ export default async function handler(req, res) {
       discoLeads, discoContacts, discoDeals,
       presBooked, presHeld
     ] = await Promise.all([
-      fetchByDateRange(token, "Leads",    F_LC, startDate, endDate, "Lead_Generated_Date"),
-      fetchByDateRange(token, "Contacts", F_LC, startDate, endDate, "Lead_Generated_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Lead_Generated_Date"),
-      fetchByDateRange(token, "Leads",    F_LC, startDate, endDate, "New_Lead_Worked_Date"),
-      fetchByDateRange(token, "Contacts", F_LC, startDate, endDate, "New_Lead_Worked_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "New_Lead_Worked_Date"),
-      fetchByDateRange(token, "Leads",    F_LC, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
-      fetchByDateRange(token, "Contacts", F_LC, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
-      fetchByDateRange(token, "Leads",    F_LC, startDate, endDate, "Qualified_Lead_Date"),
-      fetchByDateRange(token, "Contacts", F_LC, startDate, endDate, "Qualified_Lead_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Qualified_Lead_Date"),
-      fetchByDateRange(token, "Leads",    F_LC, startDate, endDate, "Discovery_Completed_Date"),
-      fetchByDateRange(token, "Contacts", F_LC, startDate, endDate, "Discovery_Completed_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Discovery_Completed_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Presentation_Booked_Date"),
-      fetchByDateRange(token, "Deals",    F_D,  startDate, endDate, "Presentation_Completed_Date"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "Lead_Generated_Date"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "Lead_Generated_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Lead_Generated_Date"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "New_Lead_Worked_Date"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "New_Lead_Worked_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "New_Lead_Worked_Date"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "Qualified_Lead_Date"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "Qualified_Lead_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Qualified_Lead_Date"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "Discovery_Completed_Date"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "Discovery_Completed_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Discovery_Completed_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Booked_Date"),
+      fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Presentation_Completed_Date"),
     ]);
 
     // Normalize lead type
@@ -142,7 +145,7 @@ export default async function handler(req, res) {
 
     // Build BDE map — keyed by lowercase name to merge case variants
     const map = {};
-    function getBDE(r, isDeals) { return isDeals ? r.BDE_Name : r.BDE_Name_1; }
+    function getBDE(r) { return r.BDE_Name_1 || r.BDE_Name1 || r.BDE_Name || null; }
     function key(bde) { return bde ? bde.trim().toLowerCase() : null; }
     function getRawSource(r) { return r.Lead_Source_BDE || ""; }
     function getRawType(r)   { return r.Lead_Type || ""; }
@@ -165,7 +168,7 @@ export default async function handler(req, res) {
     function isICP(typ) { return typ.startsWith("ICP "); }
 
     [...genLeads, ...genContacts].forEach(r => {
-      const b = getBDE(r,false); ensure(b); inc(b,"generated");
+      const b = getBDE(r); ensure(b); inc(b,"generated");
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
@@ -173,22 +176,22 @@ export default async function handler(req, res) {
       if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
     genDeals.forEach(r => {
-      const b = getBDE(r,true); ensure(b); inc(b,"generated");
+      const b = getBDE(r); ensure(b); inc(b,"generated");
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
       incSub(b,"sources", src||"Unknown");
       incSub(b,"sourceGroups", normalizeSource(src));
       incSub(b,"types", typ);
       if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
     });
-    [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"touched"); });
-    touchedDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"touched"); });
-    [...connLeads,...connContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"connected"); });
-    [...qualLeads,...qualContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"qualified"); });
-    qualDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"qualified"); });
-    [...discoLeads,...discoContacts].forEach(r => { const b=getBDE(r,false); ensure(b); inc(b,"discovery"); });
-    discoDeals.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"discovery"); });
-    presBooked.forEach(r => { const b=getBDE(r,true); ensure(b); inc(b,"presBooked"); });
-    presHeld.forEach(r =>   { const b=getBDE(r,true); ensure(b); inc(b,"presHeld"); });
+    [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"touched"); });
+    touchedDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"touched"); });
+    [...connLeads,...connContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"connected"); });
+    [...qualLeads,...qualContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"qualified"); });
+    qualDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"qualified"); });
+    [...discoLeads,...discoContacts].forEach(r => { const b=getBDE(r); ensure(b); inc(b,"discovery"); });
+    discoDeals.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"discovery"); });
+    presBooked.forEach(r => { const b=getBDE(r); ensure(b); inc(b,"presBooked"); });
+    presHeld.forEach(r =>   { const b=getBDE(r); ensure(b); inc(b,"presHeld"); });
 
     const bdes = Object.values(map).sort((a,b) => b.generated - a.generated);
 
