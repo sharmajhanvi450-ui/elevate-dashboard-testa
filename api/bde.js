@@ -207,10 +207,19 @@ export default async function handler(req, res) {
     const result = { bdes, referral, startDate, endDate };
     if (req.query.debug) {
       const icp = r => isICP(normalizeType(r.Lead_Type));
+      async function bdeFields(module, id){
+        if (!id) return null;
+        const r = await fetch(`${API_DOMAIN}/crm/v2/${module}/${id}`, { headers:{ Authorization:`Zoho-oauthtoken ${token}` } });
+        const d = await r.json(); const rec = d?.data?.[0]; if (!rec) return null;
+        return Object.keys(rec).filter(k => /bde|name|owner/i.test(k))
+          .reduce((o,k)=>{ o[k]=rec[k]; return o; }, {});
+      }
       result._debug = {
         generated:    { leads: genLeads.length, contacts: genContacts.length, deals: genDeals.length },
         generatedICP: { leads: genLeads.filter(icp).length, contacts: genContacts.filter(icp).length, deals: genDeals.filter(icp).length },
-        sampleLead: genLeads[0] || null, sampleContact: genContacts[0] || null, sampleDeal: genDeals[0] || null,
+        contactBDEfields: await bdeFields("Contacts", genContacts[0]?.id),
+        dealBDEfields:    await bdeFields("Deals",    genDeals[0]?.id),
+        leadBDEfields:    await bdeFields("Leads",    genLeads[0]?.id),
       };
       return res.status(200).json(result);  // skip cache when debugging
     }
