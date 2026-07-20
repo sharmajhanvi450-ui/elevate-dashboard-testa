@@ -71,6 +71,12 @@
   .stage-card.highlight .count { color: var(--accent); }
   .stage-card .conv { font-size: 11px; color: var(--muted); }
   .stage-card .conv span { font-weight: 700; }
+  .split-line { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .split-line .cur { color: #00e676; font-weight: 800; }
+  .split-line .old { color: var(--text); font-weight: 800; }
+  .funnel-split { font-size: 11px; color: var(--muted); }
+  .funnel-split .cur { color: #00e676; font-weight: 700; }
+  .funnel-split .old { color: var(--text); font-weight: 700; }
   .conv-green { color: var(--green) !important; }
   .conv-red   { color: #ff4d6a !important; }
 
@@ -267,6 +273,7 @@ function render(data) {
         <div class="icon">${s.icon}</div>
         <div class="name">${s.stage}</div>
         <div class="count">${s.count.toLocaleString()}</div>
+        <div class="split-line"><span class="cur">${(s.current||0).toLocaleString()}</span> this month · <span class="old">${(s.old||0).toLocaleString()}</span> old</div>
         <div class="conv">
           ${i===0 ? '<span style="color:var(--accent)">Base stage</span>' :
             `<span class="${pct>=50?'conv-green':'conv-red'}">${pct}%</span> of assigned`}
@@ -294,6 +301,7 @@ function render(data) {
         </div>
         <div class="funnel-meta">
           <div class="funnel-pct-assigned"><span>${pctAssigned}%</span> of assigned</div>
+          <div class="funnel-split"><span class="cur">${(s.current||0).toLocaleString()}</span> this month · <span class="old">${(s.old||0).toLocaleString()}</span> old</div>
           ${drop != null ? `<div class="funnel-drop ${dropClass}">▼ ${drop}% drop from prev</div>` : ''}
         </div>
       </div>

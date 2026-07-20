@@ -107,7 +107,7 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
-    const commonFields = "id,Team_Lead,Owner";
+    const commonFields = "id,Team_Lead,Owner,Lead_Generated_Date";
 
     // Records owned by these generic accounts are excluded from the funnel entirely
     const EXCLUDE_OWNERS = new Set([
@@ -162,15 +162,21 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage:equals:Closed Won")),
     ])).map(keep);
 
+    // Split each stage by lead-generation cohort: "current" = lead generated
+    // within the selected period (Lead_Generated_Date >= startDate), else "old".
+    const genDate = r => { const v = r.Lead_Generated_Date; if (!v) return null; const m = String(v).match(/^\d{4}-\d{2}-\d{2}/); return m ? m[0] : null; };
+    const isCur = r => { const g = genDate(r); return !!(g && g >= startDate); };
+    const split = (...arrs) => { let current = 0, old = 0; arrs.forEach(a => a.forEach(r => isCur(r) ? current++ : old++)); return { current, old, count: current + old }; };
+
     const funnel = [
-      { stage: "Leads Assigned",  count: assignedLeads.length  + assignedContacts.length  + assignedDeals.length,  icon: "👥" },
-      { stage: "Data Touched",    count: touchedLeads.length   + touchedContacts.length   + touchedDeals.length,   icon: "✋" },
-      { stage: "Calls Connected", count: connectedLeads.length + connectedContacts.length,                          icon: "📞" },
-      { stage: "Qualified Leads", count: qualLeads.length      + qualContacts.length      + qualDeals.length,       icon: "⭐" },
-      { stage: "Discovery Done",  count: discoLeads.length     + discoContacts.length     + discoDeals.length,      icon: "🔍" },
-      { stage: "Pres. Booked",    count: presBooked.length,                                                          icon: "📅" },
-      { stage: "Pres. Held",      count: presHeld.length,                                                            icon: "🎯" },
-      { stage: "Closed Won",      count: closedDeals.length,                                                          icon: "🏆" },
+      { stage: "Leads Assigned",  ...split(assignedLeads, assignedContacts, assignedDeals),  icon: "👥" },
+      { stage: "Data Touched",    ...split(touchedLeads, touchedContacts, touchedDeals),     icon: "✋" },
+      { stage: "Calls Connected", ...split(connectedLeads, connectedContacts),               icon: "📞" },
+      { stage: "Qualified Leads", ...split(qualLeads, qualContacts, qualDeals),              icon: "⭐" },
+      { stage: "Discovery Done",  ...split(discoLeads, discoContacts, discoDeals),           icon: "🔍" },
+      { stage: "Pres. Booked",    ...split(presBooked),                                       icon: "📅" },
+      { stage: "Pres. Held",      ...split(presHeld),                                         icon: "🎯" },
+      { stage: "Closed Won",      ...split(closedDeals),                                       icon: "🏆" },
     ];
 
     // BDE list — hardcoded from CRM data (BDE Name field in Leads module)
