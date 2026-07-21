@@ -136,15 +136,6 @@ export default async function handler(req, res) {
   try {
     const token = await getAccessToken();
     _stats = { requests: 0, retries: 0, failed: 0 };
-
-    if (req.query.debug === "whoami") {
-      const u = await zohoFetch(`${API_DOMAIN}/crm/v2/users?type=CurrentUser`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
-      const j = await u.json(); const me = j?.users?.[0] || {};
-      const org = await zohoFetch(`${API_DOMAIN}/crm/v2/org`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
-      const oj = await org.json();
-      return res.status(200).json({ email: me.email, name: me.full_name, role: me.role?.name, profile: me.profile?.name, id: me.id, org: oj?.org?.[0]?.company_name, orgId: oj?.org?.[0]?.id });
-    }
-
     const commonFields = "id,Team_Lead,Owner,Lead_Generated_Date";
 
     // Records owned by these generic accounts are excluded from the funnel entirely
