@@ -66,25 +66,33 @@ async function zohoFetch(url, opts) {
   });
 }
 
-async function fetchByDateRange(token, module, fields, startDate, endDate, dateField, extraCriteria) {
+// COQL reads LIVE data (not the eventually-consistent /search index) → exact,
+// consistent counts. Per-day queries stay under COQL's 2000-row-per-query cap.
+// `select` is a COQL field list; `extraWhere` is an optional COQL WHERE fragment.
+async function fetchByDateRange(token, module, select, startDate, endDate, dateField, extraWhere) {
   const dates = [];
   const d = new Date(startDate + "T12:00:00Z");
   const end = new Date(endDate + "T12:00:00Z");
   while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate() + 1); }
 
   async function fetchOneDay(date) {
-    let all = [], page = 1;
+    let all = [], offset = 0;
     while (true) {
-      let criteria = `(${dateField}:equals:${date})`;
-      if (extraCriteria) criteria += `AND${extraCriteria}`;
-      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`;
-      const r = await zohoFetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+      let where = `${dateField} = '${date}'`;
+      if (extraWhere) where += ` and ${extraWhere}`;
+      const q = `select ${select} from ${module} where ${where} limit ${offset}, 200`;
+      const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+        method: "POST",
+        headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ select_query: q }),
+      });
       if (r.status === 204) break;
       const data = await r.json();
       if (!data?.data?.length) break;
       all = all.concat(data.data);
       if (!data.info?.more_records) break;
-      page++;
+      offset += 200;
+      if (offset >= 2000) break;
     }
     return all;
   }
@@ -120,9 +128,9 @@ export default async function handler(req, res) {
     _stats = { requests: 0, retries: 0, failed: 0 };
     // BDE attribution field differs by module: Leads use BDE_Name_1, while
     // Contacts and Deals use BDE_Name1 (no underscore).
-    const F_L = "id,BDE_Name_1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";  // Leads
-    const F_C = "id,BDE_Name1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";   // Contacts
-    const F_D = "id,BDE_Name1,Lead_Source_BDE,Lead_Type,Lead_Generated_Date";   // Deals
+    const F_L = "id, BDE_Name_1, Lead_Source_BDE, Lead_Type, Lead_Generated_Date";  // Leads
+    const F_C = "id, BDE_Name1, Lead_Source_BDE, Lead_Type, Lead_Generated_Date";   // Contacts
+    const F_D = "id, BDE_Name1, Lead_Source_BDE, Lead_Type, Lead_Generated_Date";   // Deals
 
     const [
       genLeads, genContacts, genDeals,
@@ -138,8 +146,8 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "New_Lead_Worked_Date"),
       fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "New_Lead_Worked_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "New_Lead_Worked_Date"),
-      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
-      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "New_Lead_Worked_Date", "(Last_Call_Outcome:equals:Connected)"),
+      fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
+      fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
       fetchByDateRange(token, "Leads",    F_L, startDate, endDate, "Qualified_Lead_Date"),
       fetchByDateRange(token, "Contacts", F_C, startDate, endDate, "Qualified_Lead_Date"),
       fetchByDateRange(token, "Deals",    F_D, startDate, endDate, "Qualified_Lead_Date"),
