@@ -80,25 +80,34 @@ async function zohoFetch(url, opts) {
   });
 }
 
-async function fetchByDateRange(token, module, fields, startDate, endDate, dateField, extraCriteria) {
+// COQL reads LIVE data (not the eventually-consistent /search index), so counts
+// are exact and identical across tokens. Fetched per-day to stay under COQL's
+// 2000-record-per-query ceiling. `select` is a COQL field list; `extraWhere` is
+// an optional COQL WHERE fragment.
+async function fetchByDateRange(token, module, select, startDate, endDate, dateField, extraWhere) {
   const dates = [];
   const d = new Date(startDate + "T12:00:00Z");
   const end = new Date(endDate + "T12:00:00Z");
   while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate() + 1); }
 
   async function fetchOneDay(date) {
-    let all = [], page = 1;
+    let all = [], offset = 0;
     while (true) {
-      let criteria = `(${dateField}:equals:${date})`;
-      if (extraCriteria) criteria += `AND${extraCriteria}`;
-      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`;
-      const r = await zohoFetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+      let where = `${dateField} = '${date}'`;
+      if (extraWhere) where += ` and ${extraWhere}`;
+      const q = `select ${select} from ${module} where ${where} limit ${offset}, 200`;
+      const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+        method: "POST",
+        headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ select_query: q }),
+      });
       if (r.status === 204) break;
       const data = await r.json();
       if (!data?.data?.length) break;
       all = all.concat(data.data);
       if (!data.info?.more_records) break;
-      page++;
+      offset += 200;
+      if (offset >= 2000) break;   // COQL ceiling; daily volume stays well under this
     }
     return all;
   }
@@ -137,39 +146,33 @@ export default async function handler(req, res) {
     const token = await getAccessToken();
     _stats = { requests: 0, retries: 0, failed: 0 };
 
-    if (req.query.debug === "coql") {
-      const q = `select id, Team_Lead, Owner, Lead_Generated_Date from Leads where Lead_Assigned_Date = '${startDate}' limit 0, 3`;
-      const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, { method:"POST", headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" }, body: JSON.stringify({ select_query: q }) });
-      let body; try { body = await r.json(); } catch { body = await r.text(); }
-      return res.status(200).json({ coql_status: r.status, query: q, sample: body });
-    }
+    const commonFields = "id, Owner, Lead_Generated_Date";   // COQL select list
 
-    const commonFields = "id,Team_Lead,Owner,Lead_Generated_Date";
+    // Exclude records owned by these generic accounts. COQL returns Owner as
+    // {id} only (no email), so resolve their user IDs and filter by id.
+    const EXCLUDE_EMAILS = new Set(["bdteamleaders@elevateme.pro", "bde@elevateme.pro", "admissions@elevateme.pro"]);
+    const usersResp = await zohoFetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+    const usersJson = await usersResp.json().catch(() => ({}));
+    const excludedIds = new Set((usersJson.users || []).filter(u => EXCLUDE_EMAILS.has((u.email || "").toLowerCase())).map(u => u.id));
+    const keep = arr => arr.filter(r => !excludedIds.has(r.Owner?.id));
 
-    // Records owned by these generic accounts are excluded from the funnel entirely
-    const EXCLUDE_OWNERS = new Set([
-      "bdteamleaders@elevateme.pro",
-      "bde@elevateme.pro",
-      "admissions@elevateme.pro",
-    ]);
-    const keep = arr => arr.filter(r => !EXCLUDE_OWNERS.has((r.Owner?.email || "").toLowerCase()));
-
-    // Build filter criteria strings
+    // Build COQL WHERE fragments from the optional filters
+    const esc = v => String(v).replace(/'/g, "\\'");
     function lcCriteria(extra) {
       const parts = [];
-      if (teamLead) parts.push(`(Team_Lead:equals:${teamLead})`);
-      if (source)   parts.push(`(Lead_Source_BDE:equals:${source})`);
-      if (bde)      parts.push(`(BDE_Name_1:equals:${bde})`);
-      if (extra)    parts.push(`(${extra})`);
-      return parts.length ? parts.join("AND") : null;
+      if (teamLead) parts.push(`Team_Lead = '${esc(teamLead)}'`);
+      if (source)   parts.push(`Lead_Source_BDE = '${esc(source)}'`);
+      if (bde)      parts.push(`BDE_Name_1 = '${esc(bde)}'`);
+      if (extra)    parts.push(extra);
+      return parts.length ? parts.join(" and ") : null;
     }
     function dCriteria(extra) {
       const parts = [];
-      if (teamLead) parts.push(`(Team_Lead:equals:${teamLead})`);
-      if (source)   parts.push(`(Lead_Source_BDE:equals:${source})`);
-      if (bde)      parts.push(`(BDE_Name:equals:${bde})`);
-      if (extra)    parts.push(`(${extra})`);
-      return parts.length ? parts.join("AND") : null;
+      if (teamLead) parts.push(`Team_Lead = '${esc(teamLead)}'`);
+      if (source)   parts.push(`Lead_Source_BDE = '${esc(source)}'`);
+      if (bde)      parts.push(`BDE_Name1 = '${esc(bde)}'`);
+      if (extra)    parts.push(extra);
+      return parts.length ? parts.join(" and ") : null;
     }
 
     const [
@@ -186,8 +189,8 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      dCriteria()),
-      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome:equals:Connected")),
-      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome:equals:Connected")),
+      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = '''Connected'''")),
+      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = '''Connected'''")),
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Qualified_Lead_Date",       dCriteria()),
@@ -196,7 +199,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Discovery_Completed_Date",  dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Booked_Date",  dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Completed_Date", dCriteria()),
-      fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage:equals:Closed Won")),
+      fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage = '''Closed Won'''")),
     ])).map(keep);
 
     // Split each stage by lead-generation cohort: "current" = lead generated
