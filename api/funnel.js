@@ -149,9 +149,9 @@ export default async function handler(req, res) {
     if (req.query.debug === "coql2") {
       const run = async q => { const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, { method:"POST", headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" }, body: JSON.stringify({ select_query: q }) }); let b; try{b=await r.json();}catch{b=await r.text();} return { status:r.status, count:b?.info?.count, err:b?.message||b?.details, sample: b?.data?.[0] }; };
       return res.status(200).json({
-        connected: await run(`select id, Last_Call_Outcome from Leads where New_Lead_Worked_Date = '${startDate}' and Last_Call_Outcome = 'Connected' limit 0, 3`),
-        closed:    await run(`select id, Stage from Deals where Deal_Closed_Date = '${startDate}' and Stage = 'Closed Won' limit 0, 3`),
-        closedAny: await run(`select id, Stage from Deals where Deal_Closed_Date = '${startDate}' limit 0, 3`),
+        closed_eqDate:  await run(`select id, Stage, Deal_Closed_Date from Deals where Deal_Closed_Date = '${startDate}' limit 0, 3`),
+        closed_between: await run(`select id, Stage, Deal_Closed_Date from Deals where Deal_Closed_Date between '${startDate}T00:00:00+05:30' and '${endDate}T23:59:59+05:30' limit 0, 3`),
+        closed_won:     await run(`select id, Stage, Deal_Closed_Date from Deals where Deal_Closed_Date between '${startDate}T00:00:00+05:30' and '${endDate}T23:59:59+05:30' and Stage = 'Closed Won' limit 0, 5`),
       });
     }
 
