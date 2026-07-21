@@ -146,15 +146,6 @@ export default async function handler(req, res) {
     const token = await getAccessToken();
     _stats = { requests: 0, retries: 0, failed: 0 };
 
-    if (req.query.debug === "coql2") {
-      const run = async q => { const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, { method:"POST", headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" }, body: JSON.stringify({ select_query: q }) }); let b; try{b=await r.json();}catch{b=await r.text();} return { status:r.status, count:b?.info?.count, err:b?.message||b?.details, sample: b?.data?.[0] }; };
-      return res.status(200).json({
-        connExact: await run(`select id, Owner, Lead_Generated_Date from Leads where New_Lead_Worked_Date = '${startDate}' and Last_Call_Outcome = 'Connected' limit 0, 3`),
-        closedWonAny: await run(`select id, Deal_Closed_Date, Stage from Deals where Stage = 'Closed Won' limit 0, 10`),
-        stageValues: await run(`select id, Stage from Deals where Deal_Closed_Date = '${startDate}' limit 0, 10`),
-      });
-    }
-
     const commonFields = "id, Owner, Lead_Generated_Date";   // COQL select list
 
     // Exclude records owned by these generic accounts. COQL returns Owner as
@@ -198,8 +189,8 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      dCriteria()),
-      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = '''Connected'''")),
-      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = '''Connected'''")),
+      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = 'Connected'")),
+      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = 'Connected'")),
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Qualified_Lead_Date",       dCriteria()),
@@ -208,7 +199,7 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Discovery_Completed_Date",  dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Booked_Date",  dCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Presentation_Completed_Date", dCriteria()),
-      fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage = '''Closed Won'''")),
+      fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Deal_Closed_Date",          dCriteria("Stage = 'Closed Won'")),
     ])).map(keep);
 
     // Split each stage by lead-generation cohort: "current" = lead generated
