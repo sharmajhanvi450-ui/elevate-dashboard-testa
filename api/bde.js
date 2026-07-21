@@ -247,7 +247,7 @@ export default async function handler(req, res) {
       enrolled:   enrollments.filter(isRef).length,
     };
 
-    const result = { bdes, referral, startDate, endDate, _stats: { ..._stats } };
+    const result = { bdes, referral, startDate, endDate };
     setCached(cacheKey, result).catch(() => {});
     return res.status(200).json(result);
 

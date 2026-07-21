@@ -197,16 +197,6 @@ export default async function handler(req, res) {
     const isCur = r => { const g = genDate(r); return !!(g && g >= startDate); };
     const split = (...arrs) => { let current = 0, old = 0; arrs.forEach(a => a.forEach(r => isCur(r) ? current++ : old++)); return { current, old, count: current + old }; };
 
-    if (req.query.debug === "owners") {
-      const owners = {};
-      [...assignedLeads, ...assignedContacts, ...assignedDeals].forEach(r => {
-        const e = (r.Owner?.email || "(none)").toLowerCase();
-        owners[e] = (owners[e] || 0) + 1;
-      });
-      const sorted = Object.fromEntries(Object.entries(owners).sort((a, b) => b[1] - a[1]));
-      return res.status(200).json({ range: `${startDate}..${endDate}`, distinctOwners: Object.keys(owners).length, assignedByOwner: sorted, _stats });
-    }
-
     const funnel = [
       { stage: "Leads Assigned",  ...split(assignedLeads, assignedContacts, assignedDeals),  icon: "👥" },
       { stage: "Data Touched",    ...split(touchedLeads, touchedContacts, touchedDeals),     icon: "✋" },
@@ -230,7 +220,7 @@ export default async function handler(req, res) {
       funnel, bdes,
       teamLeads: ["Tejasvi Pathe", "Soham Bajpai", "Mamta Das", "Yash Karwa"],
       sources: ["LinkedIn", "OPT Nation", "Recruiter", "Career Builder", "OPT Resume", "Indeed", "LinkedIn Chat", "Reference"],
-      startDate, endDate, _stats: { ..._stats }
+      startDate, endDate
     };
 
     setCached(cacheKey, result);
