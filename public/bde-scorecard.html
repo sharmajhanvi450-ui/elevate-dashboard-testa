@@ -114,6 +114,24 @@ const TEAMS = [
       { label: "ICP Cold",     note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0,     dailyTarget: 15, weight: 0.30 },
     ],
   },
+  {
+    name: "Portal Team",
+    role: "Portal BDE",
+    members: ["Ajay Darbar", "Sunil Patel"],
+    kpis: [
+      { label: "ICP Cold", note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0, dailyTarget: 120, weight: 1.00 },
+    ],
+  },
+  {
+    name: "Referral Team",
+    role: "Referral BDE",
+    members: ["Meet Patel"],
+    kpis: [
+      { label: "ICP Moderate", note: "Leads Generated",         get: b => (b.types||{})["ICP Moderate"]||0,  dailyTarget: 2,  weight: 0.30 },
+      { label: "ICP Cold",     note: "Leads Generated",         get: b => (b.types||{})["ICP Cold"]||0,      dailyTarget: 10, weight: 0.20 },
+      { label: "Reference",    note: "Lead Source = Reference", get: b => (b.sourceGroups||{}).Reference||0, dailyTarget: 1,  weight: 0.50 },
+    ],
+  },
 ];
 
 const ZONE = s => s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red";
