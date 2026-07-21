@@ -52,6 +52,34 @@ function logAPI(type, role, date_range, triggered_by, duration_ms) {
 
 const API_DOMAIN = "https://www.zohoapis.in";
 
+// ── Concurrency limiter + retry, so we don't overrun Zoho's rate limit and
+//    never silently drop data on a 429/5xx (which caused undercounts). ─────────
+function makeLimiter(max) {
+  let active = 0; const q = [];
+  const pump = () => { while (active < max && q.length) { active++; (q.shift())(); } };
+  return fn => new Promise((resolve, reject) => {
+    q.push(() => fn().then(resolve, reject).finally(() => { active--; pump(); }));
+    pump();
+  });
+}
+const _limit = makeLimiter(8);           // max 8 concurrent Zoho requests
+let _stats = { requests: 0, retries: 0, failed: 0 };
+async function zohoFetch(url, opts) {
+  return _limit(async () => {
+    for (let attempt = 0; ; attempt++) {
+      _stats.requests++;
+      const r = await fetch(url, opts);
+      if ((r.status === 429 || r.status >= 500) && attempt < 6) {
+        _stats.retries++;
+        await new Promise(res => setTimeout(res, Math.min(800 * 2 ** attempt, 12000) + Math.floor(Math.random() * 300)));
+        continue;
+      }
+      if (r.status === 429 || r.status >= 500) _stats.failed++;
+      return r;
+    }
+  });
+}
+
 async function fetchByDateRange(token, module, fields, startDate, endDate, dateField, extraCriteria) {
   const dates = [];
   const d = new Date(startDate + "T12:00:00Z");
@@ -64,7 +92,7 @@ async function fetchByDateRange(token, module, fields, startDate, endDate, dateF
       let criteria = `(${dateField}:equals:${date})`;
       if (extraCriteria) criteria += `AND${extraCriteria}`;
       const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=${encodeURIComponent(criteria)}&per_page=200&page=${page}`;
-      const r = await fetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+      const r = await zohoFetch(url, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
       if (r.status === 204) break;
       const data = await r.json();
       if (!data?.data?.length) break;
@@ -107,6 +135,7 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
+    _stats = { requests: 0, retries: 0, failed: 0 };
     const commonFields = "id,Team_Lead,Owner,Lead_Generated_Date";
 
     // Records owned by these generic accounts are excluded from the funnel entirely
@@ -191,7 +220,7 @@ export default async function handler(req, res) {
       funnel, bdes,
       teamLeads: ["Tejasvi Pathe", "Soham Bajpai", "Mamta Das", "Yash Karwa"],
       sources: ["LinkedIn", "OPT Nation", "Recruiter", "Career Builder", "OPT Resume", "Indeed", "LinkedIn Chat", "Reference"],
-      startDate, endDate
+      startDate, endDate, _stats: { ..._stats }
     };
 
     setCached(cacheKey, result);
