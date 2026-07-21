@@ -136,6 +136,14 @@ export default async function handler(req, res) {
   try {
     const token = await getAccessToken();
     _stats = { requests: 0, retries: 0, failed: 0 };
+
+    if (req.query.debug === "coql") {
+      const q = `select id, Team_Lead, Owner, Lead_Generated_Date from Leads where Lead_Assigned_Date = '${startDate}' limit 0, 3`;
+      const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, { method:"POST", headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" }, body: JSON.stringify({ select_query: q }) });
+      let body; try { body = await r.json(); } catch { body = await r.text(); }
+      return res.status(200).json({ coql_status: r.status, query: q, sample: body });
+    }
+
     const commonFields = "id,Team_Lead,Owner,Lead_Generated_Date";
 
     // Records owned by these generic accounts are excluded from the funnel entirely
