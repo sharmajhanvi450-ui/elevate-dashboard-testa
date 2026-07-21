@@ -146,6 +146,15 @@ export default async function handler(req, res) {
     const token = await getAccessToken();
     _stats = { requests: 0, retries: 0, failed: 0 };
 
+    if (req.query.debug === "coql2") {
+      const run = async q => { const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, { method:"POST", headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" }, body: JSON.stringify({ select_query: q }) }); let b; try{b=await r.json();}catch{b=await r.text();} return { status:r.status, count:b?.info?.count, err:b?.message||b?.details, sample: b?.data?.[0] }; };
+      return res.status(200).json({
+        connected: await run(`select id, Last_Call_Outcome from Leads where New_Lead_Worked_Date = '${startDate}' and Last_Call_Outcome = 'Connected' limit 0, 3`),
+        closed:    await run(`select id, Stage from Deals where Deal_Closed_Date = '${startDate}' and Stage = 'Closed Won' limit 0, 3`),
+        closedAny: await run(`select id, Stage from Deals where Deal_Closed_Date = '${startDate}' limit 0, 3`),
+      });
+    }
+
     const commonFields = "id, Owner, Lead_Generated_Date";   // COQL select list
 
     // Exclude records owned by these generic accounts. COQL returns Owner as
