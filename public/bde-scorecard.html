@@ -63,11 +63,13 @@
   .bar > div { height:100%; border-radius:3px; }
   .funnel-sec { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
   .funnel-sec h5 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-  .fn-row { display:grid; grid-template-columns:1fr auto auto; gap:10px; font-size:12.5px; padding:3px 0; align-items:center; }
-  .fn-row.fn-head { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+  .fn-row { display:grid; grid-template-columns:1fr auto auto auto auto; gap:7px; font-size:12px; padding:3px 0; align-items:center; }
+  .fn-row.fn-head { color:var(--muted); font-size:9.5px; text-transform:uppercase; letter-spacing:.3px; border-bottom:1px solid var(--border); padding-bottom:4px; }
   .fn-lbl { color:var(--text); }
-  .fn-cur { font-weight:800; text-align:right; min-width:40px; }
-  .fn-old { color:var(--muted); text-align:right; min-width:40px; }
+  .fn-cur { font-weight:800; text-align:right; min-width:34px; }
+  .fn-old { color:var(--muted); text-align:right; min-width:30px; }
+  .fn-tot { font-weight:800; text-align:right; min-width:34px; }
+  .fn-conv { color:var(--yellow); font-weight:700; text-align:right; min-width:38px; }
   .empty { text-align:center; color:var(--muted); padding:3rem; }
 </style>
 </head>
@@ -181,14 +183,23 @@ const FUNNEL_STAGES = [
 ];
 function funnelSection(b){
   const cur = b.cur || {}, old = b.old || {};
+  let prevTotal = null;
+  const rows = FUNNEL_STAGES.map(([lbl,k]) => {
+    const c = cur[k]||0, o = old[k]||0, total = c + o;
+    const conv = prevTotal === null ? "—" : (prevTotal > 0 ? Math.round(total/prevTotal*100) + "%" : "0%");
+    prevTotal = total;
+    return `<div class="fn-row">
+      <div class="fn-lbl">${lbl}</div>
+      <div class="fn-cur" style="color:var(--green)">${c}</div>
+      <div class="fn-old">${o}</div>
+      <div class="fn-tot">${total}</div>
+      <div class="fn-conv">${conv}</div>
+    </div>`;
+  }).join("");
   return `<div class="funnel-sec">
     <h5>Funnel — Lead Generated cohort</h5>
-    <div class="fn-row fn-head"><div class="fn-lbl">Stage</div><div class="fn-cur">This Month</div><div class="fn-old">Old</div></div>
-    ${FUNNEL_STAGES.map(([lbl,k]) => `<div class="fn-row">
-      <div class="fn-lbl">${lbl}</div>
-      <div class="fn-cur" style="color:var(--green)">${cur[k]||0}</div>
-      <div class="fn-old">${old[k]||0}</div>
-    </div>`).join("")}
+    <div class="fn-row fn-head"><div class="fn-lbl">Stage</div><div class="fn-cur">This Mo.</div><div class="fn-old">Old</div><div class="fn-tot">Total</div><div class="fn-conv">Conv%</div></div>
+    ${rows}
   </div>`;
 }
 
