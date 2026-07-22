@@ -1,3 +1,4 @@
+export const config = { maxDuration: 60 };
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 const CACHE_TTL_MS = 20 * 60 * 1000;
