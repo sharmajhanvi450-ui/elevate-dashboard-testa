@@ -25,63 +25,88 @@ export default async function handler(req, res) {
     const startDate = req.query.start || "2026-07-01";
     const endDate   = req.query.end   || "2026-07-23";
 
-    async function coql(query) {
-      const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
-        method: "POST", headers: h, body: JSON.stringify({ select_query: query }),
+    function makeLimiter(max) {
+      let active = 0; const q = [];
+      const pump = () => { while (active < max && q.length) { active++; (q.shift())(); } };
+      return fn => new Promise((resolve, reject) => {
+        q.push(() => fn().then(resolve, reject).finally(() => { active--; pump(); }));
+        pump();
       });
-      const status = r.status;
-      if (status === 204) return { data: [], more: false, status };
-      const d = await r.json();
-      return { data: d?.data || [], more: !!d?.info?.more_records, status, raw: d };
     }
-    async function coqlAll(baseQuery) {
-      let all = [], offset = 0, firstRaw = null, firstStatus = null;
-      while (true) {
-        const { data, more, status, raw } = await coql(`${baseQuery} limit ${offset}, 200`);
-        if (firstRaw === null) { firstRaw = raw; firstStatus = status; }
-        all = all.concat(data);
-        if (!more || data.length < 200) break;
-        offset += 200;
-        if (offset >= 2000) break;
+    const _limit = makeLimiter(8);
+    async function zohoFetch(url, opts) {
+      return _limit(async () => {
+        for (let attempt = 0; ; attempt++) {
+          const r = await fetch(url, opts);
+          if ((r.status === 429 || r.status >= 500) && attempt < 6) {
+            await new Promise(res => setTimeout(res, Math.min(800 * 2 ** attempt, 12000) + Math.floor(Math.random() * 300)));
+            continue;
+          }
+          return r;
+        }
+      });
+    }
+
+    // EXACT replica of funnel.js's fetchByDateRange (per-day equality loop)
+    async function fetchByDateRange(module, select, startDate, endDate, dateField, extraWhere) {
+      const dates = [];
+      const d = new Date(startDate + "T12:00:00Z");
+      const end = new Date(endDate + "T12:00:00Z");
+      while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate() + 1); }
+
+      async function fetchOneDay(date) {
+        let all = [], offset = 0;
+        while (true) {
+          let where = `${dateField} = '${date}'`;
+          if (extraWhere) where += ` and ${extraWhere}`;
+          const q = `select ${select} from ${module} where ${where} limit ${offset}, 200`;
+          const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+            method: "POST", headers: h, body: JSON.stringify({ select_query: q }),
+          });
+          if (r.status === 204) break;
+          const data = await r.json();
+          if (!data?.data?.length) {
+            if (data?.message && !all.length) console.error(`COQL error for ${module} ${date}:`, JSON.stringify(data));
+            break;
+          }
+          all = all.concat(data.data);
+          if (!data.info?.more_records) break;
+          offset += 200;
+          if (offset >= 2000) break;
+        }
+        return all;
       }
-      return { all, firstStatus, firstRaw };
+
+      let all = [], perDayCounts = {};
+      const BATCH = 5;
+      for (let i = 0; i < dates.length; i += BATCH) {
+        const batch = dates.slice(i, i + BATCH);
+        const results = await Promise.all(batch.map(fetchOneDay));
+        batch.forEach((date, idx) => { perDayCounts[date] = results[idx].length; });
+        results.forEach(r => { all = all.concat(r); });
+      }
+      return { all, perDayCounts };
     }
 
-    // Does the field exist / what values does it actually hold?
-    const leadsRes = await coqlAll(
-      `select id, Owner, New_Lead_Worked_Date, Last_Call_Outcome from Leads where New_Lead_Worked_Date >= '${startDate}' and New_Lead_Worked_Date <= '${endDate}'`
-    );
-    const contactsRes = await coqlAll(
-      `select id, Owner, New_Lead_Worked_Date, Last_Call_Outcome from Contacts where New_Lead_Worked_Date >= '${startDate}' and New_Lead_Worked_Date <= '${endDate}'`
-    );
+    const commonFields = "id, Owner, Lead_Generated_Date";
 
-    function tally(rows) {
-      const counts = {};
-      rows.forEach(r => {
-        const v = r.Last_Call_Outcome === undefined ? "<<field missing from response>>"
-                : r.Last_Call_Outcome === null ? "<<null/empty>>"
-                : r.Last_Call_Outcome;
-        counts[v] = (counts[v] || 0) + 1;
-      });
-      return counts;
-    }
+    const [touchedLeadsRes, touchedContactsRes, connectedLeadsRes, connectedContactsRes] = await Promise.all([
+      fetchByDateRange("Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date"),
+      fetchByDateRange("Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date"),
+      fetchByDateRange("Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
+      fetchByDateRange("Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
+    ]);
 
     return res.status(200).json({
       dateRange: [startDate, endDate],
-      leads: {
-        total_touched: leadsRes.all.length,
-        last_call_outcome_value_counts: tally(leadsRes.all),
-        connected_count_exact_match: leadsRes.all.filter(r => r.Last_Call_Outcome === "Connected").length,
-        query_status: leadsRes.firstStatus,
-        sample_record: leadsRes.all[0] || null,
-      },
-      contacts: {
-        total_touched: contactsRes.all.length,
-        last_call_outcome_value_counts: tally(contactsRes.all),
-        connected_count_exact_match: contactsRes.all.filter(r => r.Last_Call_Outcome === "Connected").length,
-        query_status: contactsRes.firstStatus,
-        sample_record: contactsRes.all[0] || null,
-      },
+      touched_leads_total: touchedLeadsRes.all.length,
+      touched_contacts_total: touchedContactsRes.all.length,
+      touched_total: touchedLeadsRes.all.length + touchedContactsRes.all.length,
+      connected_leads_total: connectedLeadsRes.all.length,
+      connected_contacts_total: connectedContactsRes.all.length,
+      connected_total: connectedLeadsRes.all.length + connectedContactsRes.all.length,
+      connected_leads_per_day: connectedLeadsRes.perDayCounts,
+      connected_contacts_per_day: connectedContactsRes.perDayCounts,
     });
 
   } catch (e) {
