@@ -63,6 +63,9 @@
   .bar > div { height:100%; border-radius:3px; }
   .funnel-sec { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
   .funnel-sec h5 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .fn-toggle { cursor:pointer; user-select:none; }
+  .fn-toggle:hover { color:var(--text); }
+  .fn-arrow { display:inline-block; width:10px; }
   .fn-row { display:grid; grid-template-columns:1fr auto auto auto auto; gap:7px; font-size:12px; padding:3px 0; align-items:center; }
   .fn-row.fn-head { color:var(--muted); font-size:9.5px; text-transform:uppercase; letter-spacing:.3px; border-bottom:1px solid var(--border); padding-bottom:4px; }
   .fn-lbl { color:var(--text); }
@@ -181,7 +184,7 @@ const FUNNEL_STAGES = [
   ["Qualified","qualified"], ["Discovery","discovery"],
   ["Pres. Booked","presBooked"], ["Pres. Held","presHeld"], ["Enrolled","enrolled"],
 ];
-function funnelSection(b){
+function funnelSection(b, uid){
   const cur = b.cur || {}, old = b.old || {};
   let prevTotal = null;
   const rows = FUNNEL_STAGES.map(([lbl,k]) => {
@@ -197,9 +200,13 @@ function funnelSection(b){
     </div>`;
   }).join("");
   return `<div class="funnel-sec">
-    <h5>Funnel — Lead Generated cohort</h5>
-    <div class="fn-row fn-head"><div class="fn-lbl">Stage</div><div class="fn-cur">This Mo.</div><div class="fn-old">Old</div><div class="fn-tot">Total</div><div class="fn-conv">Conv%</div></div>
-    ${rows}
+    <h5 class="fn-toggle" onclick="const el=document.getElementById('${uid}');const open=el.style.display!=='none';el.style.display=open?'none':'block';this.querySelector('.fn-arrow').textContent=open?'▸':'▾';">
+      <span class="fn-arrow">▸</span> Funnel — Lead Generated cohort
+    </h5>
+    <div id="${uid}" style="display:none">
+      <div class="fn-row fn-head"><div class="fn-lbl">Stage</div><div class="fn-cur">This Mo.</div><div class="fn-old">Old</div><div class="fn-tot">Total</div><div class="fn-conv">Conv%</div></div>
+      ${rows}
+    </div>
   </div>`;
 }
 
@@ -228,7 +235,7 @@ function tile(member, role, kpis, bmap, wDays){
         <div class="bar"><div style="width:${Math.min(100,r.pct)}%;background:${rc}"></div></div>
       </div>`;
     }).join("")}
-    ${funnelSection(b)}
+    ${funnelSection(b, "fn-" + member.replace(/[^a-z0-9]/gi,"") )}
   </div>`;
 }
 
