@@ -53,22 +53,31 @@ export default async function handler(req, res) {
 
     const matchesOwner = c => ownerId ? String(c.Owner?.id) === String(ownerId) : c.Owner?.name === owner;
 
-    // Method A: two half-day IST windows (what report.js currently does)
+    // Instant of 00:00:00 America/New_York on `dateStr`, as a UTC Date — DST-safe
+    // (resolves the actual NY offset for that specific date instead of assuming
+    // a fixed -04:00/-05:00, which would be wrong on the other side of a DST flip).
+    function nyMidnightUTC(dateStr) {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const noonGuessUTC = new Date(Date.UTC(y, m - 1, d, 16, 0, 0)); // ~noon ET, any DST state
+      const dtf = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York", hour12: false,
+        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+      const p = dtf.formatToParts(noonGuessUTC).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+      const offsetMin = (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - noonGuessUTC.getTime()) / 60000;
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMin * 60000);
+    }
+    const dayStartUTC = nyMidnightUTC(date);
+    const dayEndUTC = new Date(dayStartUTC.getTime() + 24 * 60 * 60 * 1000 - 1000);
+
+    // Method D: correct Eastern-time calendar day boundary
+    const winD = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${dayStartUTC.toISOString()}' and '${dayEndUTC.toISOString()}'`);
+    const allD = winD.filter(matchesOwner);
+
+    // Method A: two half-day IST windows (what report.js currently does — the bug)
     const winA1 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T14:59:59+05:30'`);
     const winA2 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T15:00:00+05:30' and '${date}T23:59:59+05:30'`);
     const allA = [...winA1, ...winA2].filter(matchesOwner);
-
-    // Method B: single full-day window, no split — isolates whether splitting causes double-count
-    const winB = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T23:59:59+05:30'`);
-    const allB = winB.filter(matchesOwner);
-
-    // Method C: no timezone suffix at all — isolates whether Zoho ignores/mishandles +05:30
-    const winC = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00' and '${date}T23:59:59'`);
-    const allC = winC.filter(matchesOwner);
-
-    // Duplicate-id check within method A (would prove the two windows overlap)
-    const idsA = allA.map(c => c.id);
-    const dupIdsA = idsA.filter((id, i) => idsA.indexOf(id) !== i);
 
     const summarize = arr => ({
       total: arr.length,
@@ -80,12 +89,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       date, owner,
-      methodA_twoWindows: summarize(allA),
-      methodA_window1_raw_count: winA1.length,
-      methodA_window2_raw_count: winA2.length,
-      methodA_duplicate_ids_across_windows: [...new Set(dupIdsA)],
-      methodB_singleWindow: summarize(allB),
-      methodC_noOffset: summarize(allC),
+      methodD_easternDayBoundary: summarize(allD),
+      methodD_window_utc: [dayStartUTC.toISOString(), dayEndUTC.toISOString()],
+      methodA_twoWindows_IST_buggy: summarize(allA),
     });
 
   } catch (e) {
