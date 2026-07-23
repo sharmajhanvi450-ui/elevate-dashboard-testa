@@ -139,6 +139,24 @@ async function coqlCallsWindow(token, startDT, endDT) {
   }
   return out;
 }
+// Instant of 00:00:00 America/New_York on `dateStr`, as a UTC Date — DST-safe.
+// The business runs on US Eastern hours (see WORK_START_H elsewhere in the
+// app), not IST — a fixed IST offset here was pulling in calls from the wrong
+// 9.5-hour-shifted window and overcounting (confirmed against Zoho's own UI
+// count: IST windows gave 242 for a day Zoho itself reports as 139).
+function nyMidnightUTC(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const noonGuessUTC = new Date(Date.UTC(y, m - 1, d, 16, 0, 0)); // ~noon ET regardless of DST
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = dtf.formatToParts(noonGuessUTC).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  const offsetMin = (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - noonGuessUTC.getTime()) / 60000;
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMin * 60000);
+}
+const fmtCOQL = d => d.toISOString().replace(/\.\d{3}Z$/, "+00:00");
+
 async function fetchCallsForRange(token, startDate, endDate) {
   const dates = [];
   const d = new Date(startDate + "T12:00:00Z");
@@ -146,9 +164,12 @@ async function fetchCallsForRange(token, startDate, endDate) {
   while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate() + 1); }
 
   async function oneDay(date) {
+    const dayStart = nyMidnightUTC(date);
+    const dayMid   = new Date(dayStart.getTime() + 12 * 60 * 60 * 1000);
+    const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1000);
     const windows = [
-      [`${date}T00:00:00+05:30`, `${date}T14:59:59+05:30`],
-      [`${date}T15:00:00+05:30`, `${date}T23:59:59+05:30`],
+      [fmtCOQL(dayStart), fmtCOQL(new Date(dayMid.getTime() - 1000))],
+      [fmtCOQL(dayMid), fmtCOQL(dayEnd)],
     ];
     const parts = await Promise.all(windows.map(([s, e]) => coqlCallsWindow(token, s, e)));
     return parts.flat();
