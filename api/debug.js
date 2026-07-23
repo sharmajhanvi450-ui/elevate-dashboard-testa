@@ -32,12 +32,15 @@ export default async function handler(req, res) {
     );
 
     return res.status(200).json({
+      total_fields_returned: fieldsJson.fields?.length || 0,
+      raw_error: fieldsJson.fields ? null : fieldsJson,
       matches: matches.map(f => ({
         api_name: f.api_name,
         field_label: f.field_label,
         data_type: f.data_type,
         pick_list_values: f.pick_list_values?.map(p => p.actual_value) || null,
       })),
+      all_field_api_names: (fieldsJson.fields || []).map(f => f.api_name).sort(),
     });
 
   } catch (e) {
