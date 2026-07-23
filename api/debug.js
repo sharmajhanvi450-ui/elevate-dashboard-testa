@@ -4,6 +4,7 @@ export default async function handler(req, res) {
   const CLIENT_ID     = process.env.ZOHO_CLIENT_ID;
   const CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET;
   const REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN;
+  const API_DOMAIN    = "https://www.zohoapis.in";
 
   try {
     const tr = await fetch("https://accounts.zoho.in/oauth/v2/token", {
@@ -19,32 +20,53 @@ export default async function handler(req, res) {
     const td = await tr.json();
     if (!td.access_token) return res.status(500).json({ error: "Auth failed", detail: td });
     const token = td.access_token;
+    const h = { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" };
 
-    const date = req.query.date || "2026-06-16";
+    const date = req.query.date || "2026-07-22";
+    const owner = req.query.owner || "Avni Gajjar";
 
-    const h = { Authorization: `Zoho-oauthtoken ${token}` };
+    async function coql(query) {
+      const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
+        method: "POST", headers: h, body: JSON.stringify({ select_query: query }),
+      });
+      if (r.status === 204) return [];
+      const d = await r.json();
+      return d?.data || [];
+    }
 
-    // Try different criteria formats for date fields
-    const tests = await Promise.all([
-      // Format 1: equals with yyyy-MM-dd
-      fetch(`https://www.zohoapis.in/crm/v2/Leads?criteria=(Qualified_Lead_Date:equals:${date})&fields=Owner,Qualified_Lead_Date&per_page=5`, {headers:h}).then(r=>r.json()),
-      // Format 2: between with yyyy-MM-dd
-      fetch(`https://www.zohoapis.in/crm/v2/Leads?criteria=(Qualified_Lead_Date:between:${date},${date})&fields=Owner,Qualified_Lead_Date&per_page=5`, {headers:h}).then(r=>r.json()),
-      // Format 3: search endpoint equals
-      fetch(`https://www.zohoapis.in/crm/v2/Leads/search?criteria=(Qualified_Lead_Date:equals:${date})&fields=Owner,Qualified_Lead_Date&per_page=5`, {headers:h}).then(r=>r.json()),
-      // Format 4: calls raw last 5
-      fetch(`https://www.zohoapis.in/crm/v2/Calls?fields=Owner,Duration_in_minutes,Call_Start_Time&per_page=5&sort_by=Call_Start_Time&sort_order=desc`, {headers:h}).then(r=>r.json()),
-      // Format 5: calls with criteria
-      fetch(`https://www.zohoapis.in/crm/v2/Calls?criteria=(Call_Start_Time:between:${date}T00:00:00-05:00,${date}T23:59:59-05:00)&fields=Owner,Duration_in_minutes,Call_Start_Time&per_page=5`, {headers:h}).then(r=>r.json()),
-    ]);
+    // Method A: two half-day IST windows (what report.js currently does)
+    const winA1 = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T14:59:59+05:30' limit 0, 200`);
+    const winA2 = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T15:00:00+05:30' and '${date}T23:59:59+05:30' limit 0, 200`);
+    const allA = [...winA1, ...winA2].filter(c => c.Owner?.name === owner);
+
+    // Method B: single full-day window, no split — isolates whether splitting causes double-count
+    const winB = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T23:59:59+05:30' limit 0, 200`);
+    const allB = winB.filter(c => c.Owner?.name === owner);
+
+    // Method C: no timezone suffix at all — isolates whether Zoho ignores/mishandles +05:30
+    const winC = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00' and '${date}T23:59:59' limit 0, 200`);
+    const allC = winC.filter(c => c.Owner?.name === owner);
+
+    // Duplicate-id check within method A (would prove the two windows overlap)
+    const idsA = allA.map(c => c.id);
+    const dupIdsA = idsA.filter((id, i) => idsA.indexOf(id) !== i);
+
+    const summarize = arr => ({
+      total: arr.length,
+      byType: arr.reduce((m, c) => { m[c.Call_Type || "?"] = (m[c.Call_Type || "?"]||0)+1; return m; }, {}),
+      byStatus: arr.reduce((m, c) => { m[c.Call_Status || "?"] = (m[c.Call_Status || "?"]||0)+1; return m; }, {}),
+      minTime: arr.length ? arr.map(c=>c.Call_Start_Time).sort()[0] : null,
+      maxTime: arr.length ? arr.map(c=>c.Call_Start_Time).sort().at(-1) : null,
+    });
 
     return res.status(200).json({
-      date_tested: date,
-      leads_equals:        { count: tests[0]?.data?.length || 0, error: tests[0]?.message, sample: tests[0]?.data?.[0]?.Qualified_Lead_Date },
-      leads_between:       { count: tests[1]?.data?.length || 0, error: tests[1]?.message, sample: tests[1]?.data?.[0]?.Qualified_Lead_Date },
-      leads_search_equals: { count: tests[2]?.data?.length || 0, error: tests[2]?.message, sample: tests[2]?.data?.[0]?.Qualified_Lead_Date },
-      calls_raw_last5:     { count: tests[3]?.data?.length || 0, sample_time: tests[3]?.data?.[0]?.Call_Start_Time },
-      calls_with_criteria: { count: tests[4]?.data?.length || 0, error: tests[4]?.message },
+      date, owner,
+      methodA_twoWindows: summarize(allA),
+      methodA_window1_raw_count: winA1.length,
+      methodA_window2_raw_count: winA2.length,
+      methodA_duplicate_ids_across_windows: [...new Set(dupIdsA)],
+      methodB_singleWindow: summarize(allB),
+      methodC_noOffset: summarize(allC),
     });
 
   } catch (e) {
