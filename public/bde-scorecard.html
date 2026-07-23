@@ -139,6 +139,17 @@ const TEAMS = [
   },
 ];
 
+// Team Lead each BDE reports to (display only — does not affect scoring).
+const TEAM_LEADS = {
+  "Ronak Khant": "Dhanraj Solanki",
+  "Jiya Chandrawanshi": "Dhanraj Solanki",
+  "Bhoomi Barot": "Dhanraj Solanki",
+  "Sunil Patel": "Dhanraj Solanki",
+  "Meet Patel": "Dhanraj Solanki",
+  "Heer Nakum": "Prem Thakar",
+  "Ajay Darbar": "Prem Thakar",
+};
+
 const ZONE = s => s>=110?"gold":s>=95?"green":s>=75?"yellow":s>=50?"orange":"red";
 const ZCOL = { gold:"var(--gold)", green:"var(--green)", yellow:"var(--yellow)", orange:"var(--orange)", red:"var(--red)" };
 const ZLBL = { gold:"Golden Card", green:"Green Card", yellow:"Yellow Card", orange:"Orange Card", red:"Red Card" };
@@ -219,7 +230,7 @@ function tile(member, role, kpis, bmap, wDays){
     <div class="card-top">
       <div class="card-id">
         <div class="avatar" style="color:${col};border-color:${col}">${initials}</div>
-        <div><div class="card-name">${member}</div><div class="card-role">${role}</div></div>
+        <div><div class="card-name">${member}</div><div class="card-role">${role}${TEAM_LEADS[member] ? ` · TL: ${TEAM_LEADS[member]}` : ""}</div></div>
       </div>
       <div style="text-align:right">
         <div class="card-score" style="color:${col};text-shadow:0 0 12px ${col}">${score}%</div>
