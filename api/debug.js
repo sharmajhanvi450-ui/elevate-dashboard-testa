@@ -69,9 +69,10 @@ export default async function handler(req, res) {
     }
     const dayStartUTC = nyMidnightUTC(date);
     const dayEndUTC = new Date(dayStartUTC.getTime() + 24 * 60 * 60 * 1000 - 1000);
+    const fmt = d => d.toISOString().replace(/\.\d{3}Z$/, "+00:00");
 
     // Method D: correct Eastern-time calendar day boundary
-    const winD = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${dayStartUTC.toISOString()}' and '${dayEndUTC.toISOString()}'`);
+    const winD = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${fmt(dayStartUTC)}' and '${fmt(dayEndUTC)}'`);
     const allD = winD.filter(matchesOwner);
 
     // Method A: two half-day IST windows (what report.js currently does — the bug)
@@ -90,7 +91,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       date, owner,
       methodD_easternDayBoundary: summarize(allD),
-      methodD_window_utc: [dayStartUTC.toISOString(), dayEndUTC.toISOString()],
+      methodD_window_query: [fmt(dayStartUTC), fmt(dayEndUTC)],
+      methodD_raw_count_before_owner_filter: winD.length,
       methodA_twoWindows_IST_buggy: summarize(allA),
     });
 
