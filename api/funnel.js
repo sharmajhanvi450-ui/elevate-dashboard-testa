@@ -179,7 +179,7 @@ export default async function handler(req, res) {
     const [
       assignedLeads, assignedContacts, assignedDeals,
       touchedLeads,  touchedContacts,  touchedDeals,
-      connectedLeads, connectedContacts,
+      connectedLeads, connectedContacts, connectedDeals,
       qualLeads,  qualContacts,  qualDeals,
       discoLeads, discoContacts, discoDeals,
       presBooked, presHeld, closedDeals
@@ -190,8 +190,9 @@ export default async function handler(req, res) {
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      dCriteria()),
-      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = 'Connected'")),
-      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Last_Call_Outcome = 'Connected'")),
+      fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Connectivity = 'Connected'")),
+      fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date",      lcCriteria("Connectivity = 'Connected'")),
+      fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "New_Lead_Worked_Date",      dCriteria("Connectivity = 'Connected'")),
       fetchByDateRange(token, "Leads",    commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Contacts", commonFields, startDate, endDate, "Qualified_Lead_Date",       lcCriteria()),
       fetchByDateRange(token, "Deals",    commonFields, startDate, endDate, "Qualified_Lead_Date",       dCriteria()),
@@ -212,7 +213,7 @@ export default async function handler(req, res) {
     const funnel = [
       { stage: "Leads Assigned",  ...split(assignedLeads, assignedContacts, assignedDeals),  icon: "👥" },
       { stage: "Data Touched",    ...split(touchedLeads, touchedContacts, touchedDeals),     icon: "✋" },
-      { stage: "Calls Connected", ...split(connectedLeads, connectedContacts),               icon: "📞" },
+      { stage: "Calls Connected", ...split(connectedLeads, connectedContacts, connectedDeals), icon: "📞" },
       { stage: "Qualified Leads", ...split(qualLeads, qualContacts, qualDeals),              icon: "⭐" },
       { stage: "Discovery Done",  ...split(discoLeads, discoContacts, discoDeals),           icon: "🔍" },
       { stage: "Pres. Booked",    ...split(presBooked),                                       icon: "📅" },
