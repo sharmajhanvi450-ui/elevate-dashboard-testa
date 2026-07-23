@@ -47,7 +47,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // EXACT replica of funnel.js's fetchByDateRange (per-day equality loop)
     async function fetchByDateRange(module, select, startDate, endDate, dateField, extraWhere) {
       const dates = [];
       const d = new Date(startDate + "T12:00:00Z");
@@ -65,10 +64,7 @@ export default async function handler(req, res) {
           });
           if (r.status === 204) break;
           const data = await r.json();
-          if (!data?.data?.length) {
-            if (data?.message && !all.length) console.error(`COQL error for ${module} ${date}:`, JSON.stringify(data));
-            break;
-          }
+          if (!data?.data?.length) break;
           all = all.concat(data.data);
           if (!data.info?.more_records) break;
           offset += 200;
@@ -77,36 +73,49 @@ export default async function handler(req, res) {
         return all;
       }
 
-      let all = [], perDayCounts = {};
+      let all = [];
       const BATCH = 5;
       for (let i = 0; i < dates.length; i += BATCH) {
-        const batch = dates.slice(i, i + BATCH);
-        const results = await Promise.all(batch.map(fetchOneDay));
-        batch.forEach((date, idx) => { perDayCounts[date] = results[idx].length; });
+        const results = await Promise.all(dates.slice(i, i + BATCH).map(fetchOneDay));
         results.forEach(r => { all = all.concat(r); });
       }
-      return { all, perDayCounts };
+      return all;
     }
 
     const commonFields = "id, Owner, Lead_Generated_Date";
 
-    const [touchedLeadsRes, touchedContactsRes, connectedLeadsRes, connectedContactsRes] = await Promise.all([
+    const EXCLUDE_EMAILS = new Set(["bdteamleaders@elevateme.pro", "bde@elevateme.pro", "admissions@elevateme.pro"]);
+    const usersResp = await zohoFetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+    const usersJson = await usersResp.json().catch(() => ({}));
+    const excludedUsers = (usersJson.users || []).filter(u => EXCLUDE_EMAILS.has((u.email || "").toLowerCase()));
+    const excludedIds = new Set(excludedUsers.map(u => u.id));
+
+    const [touchedLeads, touchedContacts, connectedLeads, connectedContacts] = await Promise.all([
       fetchByDateRange("Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date"),
       fetchByDateRange("Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date"),
       fetchByDateRange("Leads",    commonFields, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
       fetchByDateRange("Contacts", commonFields, startDate, endDate, "New_Lead_Worked_Date", "Last_Call_Outcome = 'Connected'"),
     ]);
 
+    function ownerBreakdown(rows) {
+      const excluded = rows.filter(r => excludedIds.has(r.Owner?.id));
+      const kept = rows.filter(r => !excludedIds.has(r.Owner?.id));
+      const byExcludedOwner = {};
+      excluded.forEach(r => {
+        const owner = excludedUsers.find(u => u.id === r.Owner?.id);
+        const key = owner?.email || r.Owner?.id || "unknown";
+        byExcludedOwner[key] = (byExcludedOwner[key] || 0) + 1;
+      });
+      return { total: rows.length, kept: kept.length, excluded: excluded.length, byExcludedOwner };
+    }
+
     return res.status(200).json({
       dateRange: [startDate, endDate],
-      touched_leads_total: touchedLeadsRes.all.length,
-      touched_contacts_total: touchedContactsRes.all.length,
-      touched_total: touchedLeadsRes.all.length + touchedContactsRes.all.length,
-      connected_leads_total: connectedLeadsRes.all.length,
-      connected_contacts_total: connectedContactsRes.all.length,
-      connected_total: connectedLeadsRes.all.length + connectedContactsRes.all.length,
-      connected_leads_per_day: connectedLeadsRes.perDayCounts,
-      connected_contacts_per_day: connectedContactsRes.perDayCounts,
+      excluded_users_found: excludedUsers.map(u => ({ email: u.email, id: u.id, full_name: u.full_name })),
+      touched_leads: ownerBreakdown(touchedLeads),
+      touched_contacts: ownerBreakdown(touchedContacts),
+      connected_leads: ownerBreakdown(connectedLeads),
+      connected_contacts: ownerBreakdown(connectedContacts),
     });
 
   } catch (e) {
