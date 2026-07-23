@@ -22,26 +22,26 @@ export default async function handler(req, res) {
     const token = td.access_token;
     const h = { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" };
 
-    // Field metadata for Leads module — find the real API name/type of any
-    // field whose label or API name looks like "Connectivity".
-    const fieldsResp = await fetch(`${API_DOMAIN}/crm/v2/settings/fields?module=Leads`, { headers: h });
-    const fieldsJson = await fieldsResp.json();
-    const matches = (fieldsJson.fields || []).filter(f =>
-      (f.api_name || "").toLowerCase().includes("connect") ||
-      (f.field_label || "").toLowerCase().includes("connect")
-    );
+    async function coql(query) {
+      const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
+        method: "POST", headers: h, body: JSON.stringify({ select_query: query }),
+      });
+      const status = r.status;
+      if (status === 204) return { status, count: 0, error: null };
+      const d = await r.json();
+      return { status, count: d?.data?.length || 0, error: d?.message || null, sample: d?.data?.[0] || null };
+    }
 
-    return res.status(200).json({
-      total_fields_returned: fieldsJson.fields?.length || 0,
-      raw_error: fieldsJson.fields ? null : fieldsJson,
-      matches: matches.map(f => ({
-        api_name: f.api_name,
-        field_label: f.field_label,
-        data_type: f.data_type,
-        pick_list_values: f.pick_list_values?.map(p => p.actual_value) || null,
-      })),
-      all_field_api_names: (fieldsJson.fields || []).map(f => f.api_name).sort(),
-    });
+    const tests = {
+      "no_where_at_all": await coql(`select id, Connectivity from Leads limit 0, 5`),
+      "is_not_null": await coql(`select id, Connectivity from Leads where Connectivity is not null limit 0, 5`),
+      "eq_connected_bare": await coql(`select id, Connectivity from Leads where Connectivity = 'Connected' limit 0, 5`),
+      "eq_connected_in_op": await coql(`select id, Connectivity from Leads where Connectivity in ('Connected') limit 0, 5`),
+      "eq_connected_lowercase": await coql(`select id, Connectivity from Leads where Connectivity = 'connected' limit 0, 5`),
+      "combined_with_and": await coql(`select id, Connectivity, New_Lead_Worked_Date from Leads where New_Lead_Worked_Date = '2026-07-03' and Connectivity is not null limit 0, 5`),
+    };
+
+    return res.status(200).json(tests);
 
   } catch (e) {
     return res.status(500).json({ error: e.message });
