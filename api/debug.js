@@ -22,78 +22,66 @@ export default async function handler(req, res) {
     const token = td.access_token;
     const h = { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" };
 
-    const date = req.query.date || "2026-07-22";
-    const owner = req.query.owner || "Avni Gajjar";
+    const startDate = req.query.start || "2026-07-01";
+    const endDate   = req.query.end   || "2026-07-23";
 
     async function coql(query) {
       const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
         method: "POST", headers: h, body: JSON.stringify({ select_query: query }),
       });
-      if (r.status === 204) return [];
+      const status = r.status;
+      if (status === 204) return { data: [], more: false, status };
       const d = await r.json();
-      return { data: d?.data || [], more: !!d?.info?.more_records, raw_error: d?.message };
+      return { data: d?.data || [], more: !!d?.info?.more_records, status, raw: d };
     }
     async function coqlAll(baseQuery) {
-      let all = [], offset = 0;
+      let all = [], offset = 0, firstRaw = null, firstStatus = null;
       while (true) {
-        const { data, more } = await coql(`${baseQuery} limit ${offset}, 200`);
+        const { data, more, status, raw } = await coql(`${baseQuery} limit ${offset}, 200`);
+        if (firstRaw === null) { firstRaw = raw; firstStatus = status; }
         all = all.concat(data);
         if (!more || data.length < 200) break;
         offset += 200;
         if (offset >= 2000) break;
       }
-      return all;
+      return { all, firstStatus, firstRaw };
     }
 
-    // Resolve owner name -> id so filtering is exact regardless of Owner object shape
-    const usersResp = await fetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: h });
-    const usersJson = await usersResp.json().catch(()=>({}));
-    const ownerUser = (usersJson.users||[]).find(u => u.full_name === owner);
-    const ownerId = ownerUser?.id;
+    // Does the field exist / what values does it actually hold?
+    const leadsRes = await coqlAll(
+      `select id, Owner, New_Lead_Worked_Date, Last_Call_Outcome from Leads where New_Lead_Worked_Date >= '${startDate}' and New_Lead_Worked_Date <= '${endDate}'`
+    );
+    const contactsRes = await coqlAll(
+      `select id, Owner, New_Lead_Worked_Date, Last_Call_Outcome from Contacts where New_Lead_Worked_Date >= '${startDate}' and New_Lead_Worked_Date <= '${endDate}'`
+    );
 
-    const matchesOwner = c => ownerId ? String(c.Owner?.id) === String(ownerId) : c.Owner?.name === owner;
-
-    // Instant of 00:00:00 America/New_York on `dateStr`, as a UTC Date — DST-safe
-    // (resolves the actual NY offset for that specific date instead of assuming
-    // a fixed -04:00/-05:00, which would be wrong on the other side of a DST flip).
-    function nyMidnightUTC(dateStr) {
-      const [y, m, d] = dateStr.split("-").map(Number);
-      const noonGuessUTC = new Date(Date.UTC(y, m - 1, d, 16, 0, 0)); // ~noon ET, any DST state
-      const dtf = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York", hour12: false,
-        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    function tally(rows) {
+      const counts = {};
+      rows.forEach(r => {
+        const v = r.Last_Call_Outcome === undefined ? "<<field missing from response>>"
+                : r.Last_Call_Outcome === null ? "<<null/empty>>"
+                : r.Last_Call_Outcome;
+        counts[v] = (counts[v] || 0) + 1;
       });
-      const p = dtf.formatToParts(noonGuessUTC).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
-      const offsetMin = (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - noonGuessUTC.getTime()) / 60000;
-      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - offsetMin * 60000);
+      return counts;
     }
-    const dayStartUTC = nyMidnightUTC(date);
-    const dayEndUTC = new Date(dayStartUTC.getTime() + 24 * 60 * 60 * 1000 - 1000);
-    const fmt = d => d.toISOString().replace(/\.\d{3}Z$/, "+00:00");
-
-    // Method D: correct Eastern-time calendar day boundary
-    const winD = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${fmt(dayStartUTC)}' and '${fmt(dayEndUTC)}'`);
-    const allD = winD.filter(matchesOwner);
-
-    // Method A: two half-day IST windows (what report.js currently does — the bug)
-    const winA1 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T14:59:59+05:30'`);
-    const winA2 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T15:00:00+05:30' and '${date}T23:59:59+05:30'`);
-    const allA = [...winA1, ...winA2].filter(matchesOwner);
-
-    const summarize = arr => ({
-      total: arr.length,
-      byType: arr.reduce((m, c) => { m[c.Call_Type || "?"] = (m[c.Call_Type || "?"]||0)+1; return m; }, {}),
-      byStatus: arr.reduce((m, c) => { m[c.Call_Status || "?"] = (m[c.Call_Status || "?"]||0)+1; return m; }, {}),
-      minTime: arr.length ? arr.map(c=>c.Call_Start_Time).sort()[0] : null,
-      maxTime: arr.length ? arr.map(c=>c.Call_Start_Time).sort().at(-1) : null,
-    });
 
     return res.status(200).json({
-      date, owner,
-      methodD_easternDayBoundary: summarize(allD),
-      methodD_window_query: [fmt(dayStartUTC), fmt(dayEndUTC)],
-      methodD_raw_count_before_owner_filter: winD.length,
-      methodA_twoWindows_IST_buggy: summarize(allA),
+      dateRange: [startDate, endDate],
+      leads: {
+        total_touched: leadsRes.all.length,
+        last_call_outcome_value_counts: tally(leadsRes.all),
+        connected_count_exact_match: leadsRes.all.filter(r => r.Last_Call_Outcome === "Connected").length,
+        query_status: leadsRes.firstStatus,
+        sample_record: leadsRes.all[0] || null,
+      },
+      contacts: {
+        total_touched: contactsRes.all.length,
+        last_call_outcome_value_counts: tally(contactsRes.all),
+        connected_count_exact_match: contactsRes.all.filter(r => r.Last_Call_Outcome === "Connected").length,
+        query_status: contactsRes.firstStatus,
+        sample_record: contactsRes.all[0] || null,
+      },
     });
 
   } catch (e) {
