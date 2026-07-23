@@ -31,21 +31,40 @@ export default async function handler(req, res) {
       });
       if (r.status === 204) return [];
       const d = await r.json();
-      return d?.data || [];
+      return { data: d?.data || [], more: !!d?.info?.more_records, raw_error: d?.message };
+    }
+    async function coqlAll(baseQuery) {
+      let all = [], offset = 0;
+      while (true) {
+        const { data, more } = await coql(`${baseQuery} limit ${offset}, 200`);
+        all = all.concat(data);
+        if (!more || data.length < 200) break;
+        offset += 200;
+        if (offset >= 2000) break;
+      }
+      return all;
     }
 
+    // Resolve owner name -> id so filtering is exact regardless of Owner object shape
+    const usersResp = await fetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: h });
+    const usersJson = await usersResp.json().catch(()=>({}));
+    const ownerUser = (usersJson.users||[]).find(u => u.full_name === owner);
+    const ownerId = ownerUser?.id;
+
+    const matchesOwner = c => ownerId ? String(c.Owner?.id) === String(ownerId) : c.Owner?.name === owner;
+
     // Method A: two half-day IST windows (what report.js currently does)
-    const winA1 = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T14:59:59+05:30' limit 0, 200`);
-    const winA2 = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T15:00:00+05:30' and '${date}T23:59:59+05:30' limit 0, 200`);
-    const allA = [...winA1, ...winA2].filter(c => c.Owner?.name === owner);
+    const winA1 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T14:59:59+05:30'`);
+    const winA2 = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T15:00:00+05:30' and '${date}T23:59:59+05:30'`);
+    const allA = [...winA1, ...winA2].filter(matchesOwner);
 
     // Method B: single full-day window, no split — isolates whether splitting causes double-count
-    const winB = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T23:59:59+05:30' limit 0, 200`);
-    const allB = winB.filter(c => c.Owner?.name === owner);
+    const winB = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00+05:30' and '${date}T23:59:59+05:30'`);
+    const allB = winB.filter(matchesOwner);
 
     // Method C: no timezone suffix at all — isolates whether Zoho ignores/mishandles +05:30
-    const winC = await coql(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00' and '${date}T23:59:59' limit 0, 200`);
-    const allC = winC.filter(c => c.Owner?.name === owner);
+    const winC = await coqlAll(`select id, Owner, Call_Start_Time, Call_Type, Call_Status from Calls where Call_Start_Time between '${date}T00:00:00' and '${date}T23:59:59'`);
+    const allC = winC.filter(matchesOwner);
 
     // Duplicate-id check within method A (would prove the two windows overlap)
     const idsA = allA.map(c => c.id);
