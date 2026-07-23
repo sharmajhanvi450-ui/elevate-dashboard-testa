@@ -1,3 +1,5 @@
+export const config = { maxDuration: 60 };
+
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_ANON_KEY;
 const CRON_SECRET   = process.env.CRON_SECRET || "elevate2024";
@@ -7,8 +9,6 @@ const CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN;
 const AUTH_DOMAIN   = "https://accounts.zoho.in";
 const API_DOMAIN    = "https://www.zohoapis.in";
-
-const CACHE_TTL_MS  = 20 * 60 * 1000; // 20 min — matches cron interval with buffer
 
 function getTodayEST() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -64,58 +64,55 @@ async function zohoGet(token, url) {
   return r.json();
 }
 
-function parseZohoDate(val) {
-  if (!val) return null;
-  const isoMatch = val.match(/^(\d{4}-\d{2}-\d{2})T/);
-  if (isoMatch) return isoMatch[1];
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  try {
-    const d = new Date(val + " UTC");
-    if (isNaN(d)) return null;
-    return d.toISOString().split("T")[0];
-  } catch { return null; }
+// ── Concurrency limiter + retry, so we don't overrun Zoho's rate limit and
+//    never silently drop data on a 429/5xx (same pattern as funnel.js/bde.js). ──
+function makeLimiter(max) {
+  let active = 0; const q = [];
+  const pump = () => { while (active < max && q.length) { active++; (q.shift())(); } };
+  return fn => new Promise((resolve, reject) => {
+    q.push(() => fn().then(resolve, reject).finally(() => { active--; pump(); }));
+    pump();
+  });
 }
-
-async function fetchCallsForRange(token, startDate, endDate, fields) {
-  let all = [];
-  const BATCH = 5;
-  for (let start = 1; start <= 200; start += BATCH) {
-    const pages = Array.from({ length: BATCH }, (_, i) => start + i);
-    const results = await Promise.all(pages.map(p =>
-      fetch(`${API_DOMAIN}/crm/v2/Calls?fields=${fields}&per_page=200&page=${p}&sort_by=Call_Start_Time&sort_order=desc`,
-        { headers: { Authorization: `Zoho-oauthtoken ${token}` } }).then(r => r.json())
-    ));
-    let done = false;
-    for (const data of results) {
-      if (!data?.data?.length) { done = true; break; }
-      for (const record of data.data) {
-        const d = parseZohoDate(record.Call_Start_Time);
-        if (d && d >= startDate && d <= endDate) all.push(record);
+const _limit = makeLimiter(8);
+async function zohoFetch(url, opts) {
+  return _limit(async () => {
+    for (let attempt = 0; ; attempt++) {
+      const r = await fetch(url, opts);
+      if ((r.status === 429 || r.status >= 500) && attempt < 6) {
+        await new Promise(res => setTimeout(res, Math.min(800 * 2 ** attempt, 12000) + Math.floor(Math.random() * 300)));
+        continue;
       }
-      const oldestDate = parseZohoDate(data.data.at(-1)?.Call_Start_Time);
-      if (oldestDate && oldestDate < startDate) { done = true; break; }
-      if (!data.info?.more_records) { done = true; break; }
+      return r;
     }
-    if (done) break;
-  }
-  return all;
+  });
 }
 
-async function fetchByDateRange(token, module, fields, startDate, endDate, dateField) {
+// COQL reads LIVE data (not the eventually-consistent /search index used
+// previously), matching the same migration already done in funnel.js/bde.js
+// and report.js.
+async function fetchByDateRange(token, module, select, startDate, endDate, dateField) {
   const dates = [];
   const d = new Date(startDate + "T12:00:00Z");
   const end = new Date(endDate + "T12:00:00Z");
   while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setUTCDate(d.getUTCDate() + 1); }
 
   async function fetchOneDay(date) {
-    let all = [], page = 1;
+    let all = [], offset = 0;
     while (true) {
-      const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=(${dateField}:equals:${date})&per_page=200&page=${page}`;
-      const data = await zohoGet(token, url);
+      const q = `select ${select} from ${module} where ${dateField} = '${date}' limit ${offset}, 200`;
+      const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+        method: "POST",
+        headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ select_query: q }),
+      });
+      if (r.status === 204) break;
+      const data = await r.json();
       if (!data?.data?.length) break;
       all = all.concat(data.data);
       if (!data.info?.more_records) break;
-      page++;
+      offset += 200;
+      if (offset >= 2000) break;
     }
     return all;
   }
@@ -127,6 +124,39 @@ async function fetchByDateRange(token, module, fields, startDate, endDate, dateF
     results.forEach(r => { all = all.concat(r); });
   }
   return all;
+}
+
+// Calls uses a datetime field, so it needs a `between` window rather than the
+// date-only equality above — same two-half-day-IST-window approach as
+// report.js/snapshot.js.
+async function coqlCallsWindow(token, startDT, endDT) {
+  const out = [];
+  let offset = 0;
+  while (true) {
+    const q = `select Owner, Call_Duration_in_seconds, Call_Start_Time, Call_Type, Call_Status `
+            + `from Calls where Call_Start_Time between '${startDT}' and '${endDT}' limit ${offset}, 200`;
+    const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+      method: "POST",
+      headers: { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ select_query: q }),
+    });
+    if (r.status === 204) break;
+    const data = await r.json();
+    if (!data?.data?.length) break;
+    out.push(...data.data);
+    if (!data.info?.more_records) break;
+    offset += 200;
+    if (offset >= 2000) break;
+  }
+  return out;
+}
+async function fetchCallsForRange(token, date) {
+  const windows = [
+    [`${date}T00:00:00+05:30`, `${date}T14:59:59+05:30`],
+    [`${date}T15:00:00+05:30`, `${date}T23:59:59+05:30`],
+  ];
+  const parts = await Promise.all(windows.map(([s, e]) => coqlCallsWindow(token, s, e)));
+  return parts.flat();
 }
 
 async function refreshRole(token, allUsers, role, date) {
@@ -153,19 +183,18 @@ async function refreshRole(token, allUsers, role, date) {
       if (isC) closerMap[u.id] = { ...base, presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 };
       else     builderMap[u.id] = { ...base, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 };
     });
-    const CF = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
     const [calls, presHeld, closedDeals, upfrontDeals,
            leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
-      fetchCallsForRange(token, date, date, CF),
-      fetchByDateRange(token, "Deals", "Owner,Team_Lead",                       date, date, "Presentation_Completed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Future_Booked_Upfront,Team_Lead", date, date, "Deal_Closed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Upfront_Amount,Team_Lead",        date, date, "Upfront_Amount_Received_Date"),
-      fetchByDateRange(token, "Leads", "Owner,Team_Lead",                       date, date, "Qualified_Lead_Date"),
-      fetchByDateRange(token, "Leads", "Owner,Team_Lead",                       date, date, "Discovery_Completed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",               date, date, "Qualified_Lead_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",               date, date, "Discovery_Completed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",               date, date, "Presentation_Booked_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead",               date, date, "Presentation_Completed_Date"),
+      fetchCallsForRange(token, date),
+      fetchByDateRange(token, "Deals", "Owner, Team_Lead",                       date, date, "Presentation_Completed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Future_Booked_Upfront, Team_Lead", date, date, "Deal_Closed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Upfront_Amount, Team_Lead",        date, date, "Upfront_Amount_Received_Date"),
+      fetchByDateRange(token, "Leads", "Owner, Team_Lead",                       date, date, "Qualified_Lead_Date"),
+      fetchByDateRange(token, "Leads", "Owner, Team_Lead",                       date, date, "Discovery_Completed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead",               date, date, "Qualified_Lead_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead",               date, date, "Discovery_Completed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead",               date, date, "Presentation_Booked_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead",               date, date, "Presentation_Completed_Date"),
     ]);
     calls.forEach(c => {
       const id = c.Owner?.id;
@@ -202,12 +231,11 @@ async function refreshRole(token, allUsers, role, date) {
   if (isCloser) {
     const map = {};
     users.forEach(u => { map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 }; });
-    const CF = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
     const [calls, presHeld, closedDeals, upfrontDeals] = await Promise.all([
-      fetchCallsForRange(token, date, date, CF),
-      fetchByDateRange(token, "Deals", "Owner,Team_Lead", date, date, "Presentation_Completed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Future_Booked_Upfront,Team_Lead", date, date, "Deal_Closed_Date"),
-      fetchByDateRange(token, "Deals", "Owner,Upfront_Amount,Team_Lead", date, date, "Upfront_Amount_Received_Date"),
+      fetchCallsForRange(token, date),
+      fetchByDateRange(token, "Deals", "Owner, Team_Lead", date, date, "Presentation_Completed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Future_Booked_Upfront, Team_Lead", date, date, "Deal_Closed_Date"),
+      fetchByDateRange(token, "Deals", "Owner, Upfront_Amount, Team_Lead", date, date, "Upfront_Amount_Received_Date"),
     ]);
     calls.forEach(c => {
       const id = c.Owner?.id; if (!map[id]) return;
@@ -227,15 +255,14 @@ async function refreshRole(token, allUsers, role, date) {
   // Builder
   const map = {};
   users.forEach(u => { map[u.id] = { name: u.full_name, id: u.id, teamLead: "", calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0, leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0 }; });
-  const CF = "Owner,Call_Duration_in_seconds,Call_Start_Time,Call_Type,Call_Status";
   const [calls, leadsQL, leadsDisc, dealsQL, dealsDisc, dealsPB, dealsPC] = await Promise.all([
-    fetchCallsForRange(token, date, date, CF),
-    fetchByDateRange(token, "Leads", "Owner,Team_Lead", date, date, "Qualified_Lead_Date"),
-    fetchByDateRange(token, "Leads", "Owner,Team_Lead", date, date, "Discovery_Completed_Date"),
-    fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", date, date, "Qualified_Lead_Date"),
-    fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", date, date, "Discovery_Completed_Date"),
-    fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", date, date, "Presentation_Booked_Date"),
-    fetchByDateRange(token, "Deals", "Owner,Builder,Team_Lead", date, date, "Presentation_Completed_Date"),
+    fetchCallsForRange(token, date),
+    fetchByDateRange(token, "Leads", "Owner, Team_Lead", date, date, "Qualified_Lead_Date"),
+    fetchByDateRange(token, "Leads", "Owner, Team_Lead", date, date, "Discovery_Completed_Date"),
+    fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead", date, date, "Qualified_Lead_Date"),
+    fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead", date, date, "Discovery_Completed_Date"),
+    fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead", date, date, "Presentation_Booked_Date"),
+    fetchByDateRange(token, "Deals", "Owner, Builder, Team_Lead", date, date, "Presentation_Completed_Date"),
   ]);
   calls.forEach(c => {
     const id = c.Owner?.id; if (!map[id]) return;
