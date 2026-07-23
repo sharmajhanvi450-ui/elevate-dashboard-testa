@@ -232,7 +232,8 @@ export default async function handler(req, res) {
       funnel, bdes,
       teamLeads: ["Tejasvi Pathe", "Soham Bajpai", "Mamta Das", "Yash Karwa"],
       sources: ["LinkedIn", "OPT Nation", "Recruiter", "Career Builder", "OPT Resume", "Indeed", "LinkedIn Chat", "Reference"],
-      startDate, endDate
+      startDate, endDate,
+      _debug_stats: { ..._stats }, // temporary — checking for silent rate-limit failures
     };
 
     setCached(cacheKey, result);
