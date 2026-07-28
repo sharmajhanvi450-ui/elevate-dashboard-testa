@@ -277,7 +277,7 @@ function personCard(p, i, isCloser) {
 
   return `<div style="position:relative;border-radius:14px;padding:14px 16px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:${p.onLeave?"none":"0 0 26px "+t.rgb(0.3)+", inset 0 0 46px "+t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:10px;animation:omRise 0.5s ease both">
     ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
-    <div style="display:flex;align-items:flex-start;gap:11px">
+    <div style="display:flex;align-items:center;gap:11px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:58px">
         <div style="width:58px;height:58px;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
           ${avatarBgHtml(p.name)}
