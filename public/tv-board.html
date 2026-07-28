@@ -6,10 +6,10 @@
 <title>ElevateMe — Floor TV Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #05060b; overflow: hidden; height: 100%; font-family: 'Barlow', sans-serif; color: #eef0f7; }
+  html, body { background: #05060b; overflow: hidden; height: 100%; font-family: 'Nunito Sans', sans-serif; color: #eef0f7; }
   @keyframes omDrift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(4%,-3%,0) scale(1.15); } 100% { transform: translate3d(0,0,0) scale(1); } }
   @keyframes omShine { 0% { transform: translateX(-120%) skewX(-18deg); } 55%, 100% { transform: translateX(320%) skewX(-18deg); } }
   @keyframes omPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
@@ -32,7 +32,7 @@
   #settings-panel {
     position: fixed; top: 46px; right: 10px; z-index: 501; display: none;
     background: #0f1322; border: 1px solid #1e2640; border-radius: 12px; padding: 16px;
-    font-family: 'Barlow', sans-serif; font-size: 13px; color: #eef0f7; width: 240px;
+    font-family: 'Nunito Sans', sans-serif; font-size: 13px; color: #eef0f7; width: 240px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   }
   #settings-panel.open { display: block; }
@@ -249,7 +249,7 @@ function personCard(p, i, isCloser) {
     return `<div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:7px 9px;display:flex;flex-direction:column;justify-content:center;gap:4px">
       <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#8e98bb;text-transform:uppercase;white-space:nowrap;overflow:hidden">${label}</div>
       <div style="display:flex;align-items:baseline;gap:4px">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#eef0f7">${val}</span>
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:26px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#eef0f7">${val}</span>
         <span style="font-size:11px;font-weight:700;color:#6c769b">/ ${tgt}</span>
       </div>
       <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
@@ -264,21 +264,21 @@ function personCard(p, i, isCloser) {
       <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:58px">
         <div style="width:58px;height:58px;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
           ${avatarBgHtml(p.name)}
-          <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
+          <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:900;line-height:1;color:${i===0&&!p.onLeave?"#0b0a04":t.ink};padding:1px 7px;border-radius:6px;background:${i===0&&!p.onLeave?t.ink:"rgba(255,255,255,0.07)"}">${p.onLeave?"—":i+1}</span>
+          <span style="font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:900;line-height:1;color:${i===0&&!p.onLeave?"#0b0a04":t.ink};padding:1px 7px;border-radius:6px;background:${i===0&&!p.onLeave?t.ink:"rgba(255,255,255,0.07)"}">${p.onLeave?"—":i+1}</span>
         </div>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:27px;font-weight:800;line-height:1.02;letter-spacing:0.3px;color:${p.onLeave?"#7a7a99":"#f4f6fc"}">${p.name}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:27px;font-weight:800;line-height:1.02;letter-spacing:0.3px;color:${p.onLeave?"#7a7a99":"#f4f6fc"}">${p.name}</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;color:#7b86ad;text-transform:uppercase;margin-top:2px">${p.team}</div>
         <div style="display:inline-flex;align-items:center;margin-top:5px;padding:3px 9px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
           <span style="font-size:11px;font-weight:900;letter-spacing:1.3px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
         </div>
       </div>
       <div style="text-align:right;flex:none;width:92px">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:46px;font-weight:900;line-height:0.95;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${scoreLabel}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:46px;font-weight:900;line-height:0.95;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${scoreLabel}</div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(${isCloser?2:3},minmax(0,1fr));gap:7px;flex:1;min-height:0">${kpisHtml}</div>
@@ -288,7 +288,7 @@ function personCard(p, i, isCloser) {
       <span style="color:#b388ff">✕ ${p.missed} miss</span>
     </div>
     ${p.onLeave ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,6,11,0.55);pointer-events:none">
-      <div style="padding:8px 18px;border:2px dashed rgba(150,150,200,0.4);border-radius:8px;transform:rotate(-11deg);font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;letter-spacing:3px;color:rgba(160,160,205,0.6)">ON LEAVE</div>
+      <div style="padding:8px 18px;border:2px dashed rgba(150,150,200,0.4);border-radius:8px;transform:rotate(-11deg);font-family:'Nunito Sans',sans-serif;font-size:24px;font-weight:900;letter-spacing:3px;color:rgba(160,160,205,0.6)">ON LEAVE</div>
     </div>` : ""}
   </div>`;
 }
@@ -304,10 +304,10 @@ function teamCard(team, members) {
     return `<div style="flex:1;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.05)">
       <div style="width:40px;height:40px;border-radius:50%;flex:none;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
         ${avatarBgHtml(m.name)}
-        <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
+        <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:14px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
         <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#6c769b;text-transform:uppercase">${m.role}</div>
       </div>
       <div style="width:112px;flex:none">
@@ -315,19 +315,19 @@ function teamCard(team, members) {
           <div style="height:5px;border-radius:3px;background:${mt.ink};width:${m.onLeave?0:Math.min(100,(m.score/150)*100).toFixed(0)}%"></div>
         </div>
       </div>
-      <div style="width:78px;text-align:right;flex:none;font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave?"—":Math.round(m.score*anim)+"%"}</div>
+      <div style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave?"—":Math.round(m.score*anim)+"%"}</div>
     </div>`;
   }).join("");
 
   return `<div style="position:relative;border-radius:16px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 30px rgba(0,0,0,0.5);overflow:hidden;display:flex;flex-direction:column;animation:omRise 0.5s ease both">
     <div style="padding:20px 24px 16px;border-bottom:1px solid rgba(255,255,255,0.09);display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
       <div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:40px;font-weight:900;line-height:1;letter-spacing:0.6px;color:${t.ink}">${team}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:40px;font-weight:900;line-height:1;letter-spacing:0.6px;color:${t.ink}">${team}</div>
         <div style="font-size:12px;font-weight:800;letter-spacing:2.2px;color:#7b86ad;text-transform:uppercase;margin-top:5px">TEAM HEALTH SCORE</div>
         <div style="display:inline-flex;margin-top:9px;padding:4px 11px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:12px;font-weight:900;letter-spacing:1.4px;white-space:nowrap;color:${t.ink}">${t.label}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">${Math.round(health*anim)}%</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">${Math.round(health*anim)}%</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#7b86ad;margin-top:4px">${active.length} ACTIVE · ${members.length-active.length} ON LEAVE</div>
       </div>
     </div>
@@ -414,7 +414,7 @@ function render() {
     <div style="flex:1;min-width:0;padding:11px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.03);display:flex;flex-direction:column;justify-content:center;gap:5px">
       <div style="font-size:12px;font-weight:800;letter-spacing:1.9px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.label}</div>
       <div style="display:flex;align-items:baseline;gap:7px">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.color}">${t.value}</span>
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.color}">${t.value}</span>
         <span style="font-size:12px;font-weight:700;color:#6c769b">${t.hint}</span>
       </div>
       <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
@@ -436,7 +436,7 @@ function render() {
             <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" style="height:46px;width:auto;display:block" />
             <div style="width:1px;height:42px;background:rgba(255,255,255,0.12)"></div>
             <div style="display:flex;flex-direction:column;gap:2px">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:38px;font-weight:900;letter-spacing:2px;line-height:1;text-transform:uppercase">${viewTitle}</div>
+              <div style="font-family:'Nunito Sans',sans-serif;font-size:38px;font-weight:900;letter-spacing:2px;line-height:1;text-transform:uppercase">${viewTitle}</div>
               <div style="font-size:14px;font-weight:700;letter-spacing:3.4px;color:#7b86ad;text-transform:uppercase">${viewSub}</div>
             </div>
           </div>
@@ -455,7 +455,7 @@ function render() {
               </div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <div id="tv-clock" style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
+              <div id="tv-clock" style="font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:2.4px;color:#7b86ad">EST</div>
             </div>
             <div id="tv-pips" style="display:flex;align-items:center;gap:7px">${pipsHtml}</div>
@@ -465,13 +465,13 @@ function render() {
         <div style="display:flex;align-items:stretch;gap:12px">
           <div style="display:flex;align-items:center;gap:14px;padding:12px 20px;border-radius:12px;border:1px solid rgba(255,215,64,0.34);background:linear-gradient(100deg,rgba(255,215,64,0.14),rgba(255,215,64,0.02));min-width:392px;position:relative;overflow:hidden">
             <div style="position:absolute;inset:0;width:120px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.16),transparent);animation:omShine 5s ease-in-out infinite"></div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:2.6px;color:#ffd740;writing-mode:vertical-rl;transform:rotate(180deg)">LEADER</div>
-            <div style="width:56px;height:56px;border-radius:50%;flex:none;background:rgba(255,215,64,0.14);border:2px solid #ffd740;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:#ffd740">${linit}</div>
+            <div style="font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;letter-spacing:2.6px;color:#ffd740;writing-mode:vertical-rl;transform:rotate(180deg)">LEADER</div>
+            <div style="width:56px;height:56px;border-radius:50%;flex:none;background:rgba(255,215,64,0.14);border:2px solid #ffd740;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;color:#ffd740">${linit}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
+              <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
               <div style="font-size:13px;font-weight:700;letter-spacing:1.6px;color:#a2914f;text-transform:uppercase">${lsub}</div>
             </div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">${lscore}</div>
+            <div style="font-family:'Nunito Sans',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">${lscore}</div>
           </div>
           ${totalsBlockHtml}
         </div>
