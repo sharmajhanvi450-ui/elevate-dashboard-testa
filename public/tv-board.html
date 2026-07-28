@@ -281,7 +281,7 @@ function personCard(p, i, isCloser) {
         </div>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:27px;font-weight:800;line-height:1.02;letter-spacing:0.3px;color:${p.onLeave?"#7a7a99":"#f4f6fc"}">${p.name}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:800;line-height:1.15;letter-spacing:0.1px;color:${p.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;color:#7b86ad;text-transform:uppercase;margin-top:2px">${p.team}</div>
         <div style="display:inline-flex;align-items:center;margin-top:5px;padding:3px 9px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
           <span style="font-size:11px;font-weight:900;letter-spacing:1.3px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
@@ -445,9 +445,9 @@ function render() {
           <div style="display:flex;align-items:center;gap:20px">
             <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" style="height:46px;width:auto;display:block" />
             <div style="width:1px;height:42px;background:rgba(255,255,255,0.12)"></div>
-            <div style="display:flex;flex-direction:column;gap:2px">
-              <div style="font-family:'Nunito Sans',sans-serif;font-size:38px;font-weight:900;letter-spacing:2px;line-height:1;text-transform:uppercase">${viewTitle}</div>
-              <div style="font-size:14px;font-weight:700;letter-spacing:3.4px;color:#7b86ad;text-transform:uppercase">${viewSub}</div>
+            <div style="display:flex;flex-direction:column;gap:2px;max-width:1000px;min-width:0">
+              <div style="font-family:'Nunito Sans',sans-serif;font-size:38px;font-weight:900;letter-spacing:1px;line-height:1;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${viewTitle}</div>
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${viewSub}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:34px">
@@ -479,7 +479,7 @@ function render() {
             <div style="width:56px;height:56px;border-radius:50%;flex:none;background:rgba(255,215,64,0.14);border:2px solid #ffd740;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;color:#ffd740">${linit}</div>
             <div style="flex:1;min-width:0">
               <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
-              <div style="font-size:13px;font-weight:700;letter-spacing:1.6px;color:#a2914f;text-transform:uppercase">${lsub}</div>
+              <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:#a2914f;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lsub}</div>
             </div>
             <div style="font-family:'Nunito Sans',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">${lscore}</div>
           </div>
