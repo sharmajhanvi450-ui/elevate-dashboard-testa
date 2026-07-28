@@ -208,6 +208,10 @@ function onResize() {
   _resizeTimer = setTimeout(fit, 150);
 }
 
+// If data fetches keep failing (e.g. an expired auth session on a tab left
+// open for hours), don't just sit there empty — reload the whole page after
+// a few consecutive misses so it comes back with a fresh session.
+let _consecutiveLoadFailures = 0;
 async function loadData() {
   const today = fmtDate(estNow());
   const startDate = STATE.isLive ? today : STATE.rangeStart;
@@ -235,8 +239,11 @@ async function loadData() {
     }).sort((a,b) => (a.onLeave?1:0) - (b.onLeave?1:0) || b.score - a.score);
 
     STATE.now = new Date();
+    _consecutiveLoadFailures = 0;
   } catch (e) {
     console.error("TV board data load failed:", e.message);
+    _consecutiveLoadFailures++;
+    if (_consecutiveLoadFailures >= 3) { location.reload(); return; }
   }
   render();
 }
@@ -589,6 +596,10 @@ function initBoard() {
   startTicking();
   startDataRefresh();
   loadData().then(() => { _dataLoadedOnce = true; runCountUp(); });
+  // Kiosk safeguard: force a full reload every 4 hours so a tab left open
+  // indefinitely always ends up running the latest deployed code and a
+  // fresh session, without anyone needing to walk over and refresh it.
+  setTimeout(() => location.reload(), 4 * 60 * 60 * 1000);
 }
 
 // ── Hidden settings panel wiring ─────────────────────────────────────────────
