@@ -192,10 +192,20 @@ let STATE = {
 };
 const ROTATE_SECONDS = 30;
 
+// Don't paint until real data has arrived — painting an empty board on
+// initial fit(), then again on the resize event(s) the browser fires right
+// after navigation, then again once data loads, is what produced the
+// "blinks 3 times" flash when coming back to this page.
+let _dataLoadedOnce = false;
 function fit() {
   const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
   STATE.scale = Math.max(0.1, s);
-  render();
+  if (_dataLoadedOnce) render();
+}
+let _resizeTimer = null;
+function onResize() {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(fit, 150);
 }
 
 async function loadData() {
@@ -575,10 +585,10 @@ function startDataRefresh() {
 
 function initBoard() {
   fit();
-  window.addEventListener("resize", fit);
+  window.addEventListener("resize", onResize);
   startTicking();
   startDataRefresh();
-  loadData().then(runCountUp);
+  loadData().then(() => { _dataLoadedOnce = true; runCountUp(); });
 }
 
 // ── Hidden settings panel wiring ─────────────────────────────────────────────
