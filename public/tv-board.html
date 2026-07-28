@@ -180,7 +180,6 @@ function dayFraction(dateStr, isCustomRange) {
 let STATE = {
   view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders
   elapsed: 0,
-  anim: 1,
   scale: 1,
   now: new Date(),
   builders: [],
@@ -254,12 +253,15 @@ function teamOf(name) {
 }
 
 function personCard(p, i, isCloser) {
-  const t = TIER[p.tier], anim = STATE.anim;
+  const t = TIER[p.tier];
   const kdef = isCloser
     ? [["calls", p.calls, C_T.calls], ["minutes", p.minutes, C_T.minutes], ["pres held", p.presentations, C_T.presentations], ["deals", p.dealsClosed, 1]]
     : [["calls", p.calls, B_T.calls], ["minutes", p.minutes, B_T.minutes], ["q. leads", p.leads, B_T.leads], ["disco", p.discoveries, B_T.discoveries], ["pres bkd", p.presBooked, B_T.presBooked], ["pres cmp", p.presCompleted, B_T.presCompleted]];
   const celebrate = p.tier === "gold";
-  const scoreLabel = p.onLeave ? "—" : Math.round(p.score * anim) + "%";
+  // Only this score text counts up (0% -> final) — everything else in the
+  // card is static, so it's tagged for animateScores() to update directly
+  // instead of being rebuilt by render() on every animation step.
+  const scoreFinal = p.onLeave ? "" : Math.round(p.score);
   const kpisHtml = kdef.map(([label, val, tgt]) => {
     const pct = cap(val, tgt);
     const bar = Math.min(100, (pct / 150) * 100).toFixed(0);
@@ -295,7 +297,7 @@ function personCard(p, i, isCloser) {
         </div>
       </div>
       <div style="text-align:right;flex:none;width:92px">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:46px;font-weight:900;line-height:0.95;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${scoreLabel}</div>
+        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:46px;font-weight:900;line-height:0.95;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(${isCloser?2:3},minmax(0,1fr));gap:7px;flex:1;min-height:0">${kpisHtml}</div>
@@ -314,10 +316,10 @@ function teamCard(team, members) {
   const active = members.filter(m => !m.onLeave);
   const health = active.length ? Math.round(active.reduce((s,m) => s + m.score, 0) / active.length) : 0;
   const t = TIER[zone(health)];
-  const anim = STATE.anim;
   const sortedMembers = [...active.sort((a,b) => b.score - a.score), ...members.filter(m => m.onLeave)];
   const membersHtml = sortedMembers.map(m => {
     const mt = TIER[m.tier];
+    const memberScoreFinal = m.onLeave ? "" : Math.round(m.score);
     return `<div style="flex:1;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.05)">
       <div style="width:40px;height:40px;border-radius:50%;flex:none;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
         ${avatarBgHtml(m.name)}
@@ -332,7 +334,7 @@ function teamCard(team, members) {
           <div style="height:5px;border-radius:3px;background:${mt.ink};width:${m.onLeave?0:Math.min(100,(m.score/150)*100).toFixed(0)}%"></div>
         </div>
       </div>
-      <div style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave?"—":Math.round(m.score*anim)+"%"}</div>
+      <div class="${m.onLeave?'':'tv-cnt'}" data-final="${memberScoreFinal}" style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave ? "—" : "0%"}</div>
     </div>`;
   }).join("");
 
@@ -344,7 +346,7 @@ function teamCard(team, members) {
         <div style="display:inline-flex;margin-top:9px;padding:4px 11px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:12px;font-weight:900;letter-spacing:1.4px;white-space:nowrap;color:${t.ink}">${t.label}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">${Math.round(health*anim)}%</div>
+        <div class="tv-cnt" data-final="${health}" style="font-family:'Nunito Sans',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#7b86ad;margin-top:4px">${active.length} ACTIVE · ${members.length-active.length} ON LEAVE</div>
       </div>
     </div>
@@ -355,7 +357,6 @@ function teamCard(team, members) {
 function render() {
   document.getElementById("board-root").style.display = "block";
   const { builders, closers } = STATE;
-  const anim = STATE.anim;
 
   const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
   const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
@@ -370,7 +371,7 @@ function render() {
     </div>`;
   }).join("");
 
-  let cardsHtml = "", cols = 5, viewTitle = "", viewSub = "", leaderHtml = "", totalsHtml = "", tickerText = "";
+  let cardsHtml = "", cols = 5, viewTitle = "", viewSub = "", leaderHtml = "", leaderScoreFinal = 0, totalsHtml = "", tickerText = "";
 
   if (view === 2) {
     const all = [...builders, ...closers];
@@ -385,10 +386,11 @@ function render() {
     cardsHtml = teams.map(t => teamCard(t.name, t.members)).join("");
     viewTitle = "Team Leader Board"; viewSub = "Team health score · average of active member scores";
     const best = teams.slice().sort((a,b) => b.health - a.health)[0] || { name: "—", health: 0 };
-    leaderHtml = `${initials(best.name)}|${best.name}|TOP TEAM|${Math.round(best.health*anim)}%`;
+    leaderHtml = `${initials(best.name)}|${best.name}|TOP TEAM`;
+    leaderScoreFinal = best.health;
     totalsHtml = teams.map(t => {
       const tk = TIER[zone(t.health)];
-      return { label: t.name, value: Math.round(t.health*anim)+"%", hint: t.members.length+" members", color: tk.ink, bar: Math.min(100,(t.health/150)*100).toFixed(0) };
+      return { label: t.name, value: t.health+"%", hint: t.members.length+" members", color: tk.ink, bar: Math.min(100,(t.health/150)*100).toFixed(0) };
     });
     tickerText = teams.map(t => t.name.toUpperCase()+" "+t.health+"%").join("   ·   ") + "   ·   TEAM HEALTH EXCLUDES MEMBERS ON LEAVE   ·   ";
   } else if (view === 1) {
@@ -396,7 +398,8 @@ function render() {
     cardsHtml = closers.map((p,i) => personCard(p, i, true)).join("");
     viewTitle = "Closer Board"; viewSub = "Follow-up calls 40% · call minutes 20% · presentations held 40% · deal multiplier";
     const top = closers[0] || { name:"—", score:0, tier:"red" };
-    leaderHtml = `${initials(top.name)}|${top.name}|TOP CLOSER · ${TIER[top.tier].label}|${Math.round(top.score*anim)}%`;
+    leaderHtml = `${initials(top.name)}|${top.name}|TOP CLOSER · ${TIER[top.tier].label}`;
+    leaderScoreFinal = top.score;
     const sum = k => closers.reduce((s,c) => s+(c[k]||0), 0);
     const n = closers.length || 1;
     totalsHtml = [
@@ -412,7 +415,8 @@ function render() {
     cardsHtml = builders.map((p,i) => personCard(p, i, false)).join("");
     viewTitle = "Builder Board"; viewSub = "Calls 20% · minutes 20% · leads 10% · discoveries 15% · pres booked 10% · pres completed 25%";
     const top = builders[0] || { name:"—", score:0, tier:"red" };
-    leaderHtml = `${initials(top.name)}|${top.name}|TOP BUILDER · ${TIER[top.tier].label}|${Math.round(top.score*anim)}%`;
+    leaderHtml = `${initials(top.name)}|${top.name}|TOP BUILDER · ${TIER[top.tier].label}`;
+    leaderScoreFinal = top.score;
     const sum = k => builders.reduce((s,b) => s+(b[k]||0), 0);
     const n = builders.filter(b => !b.onLeave).length || 1;
     totalsHtml = [
@@ -426,7 +430,7 @@ function render() {
     tickerText = top.name.toUpperCase()+" HOLDS #1 AT "+top.score+"%   ·   "+golds+" GOLDEN CARDS ON THE FLOOR   ·   TEAM CALLS "+sum("calls")+" / "+n*B_T.calls+"   ·   110%+ = GOLDEN CARD   ·   ";
   }
 
-  const [linit, lname, lsub, lscore] = leaderHtml.split("|");
+  const [linit, lname, lsub] = leaderHtml.split("|");
   const totalsBlockHtml = totalsHtml.map(t => `
     <div style="flex:1;min-width:0;padding:11px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.03);display:flex;flex-direction:column;justify-content:center;gap:5px">
       <div style="font-size:12px;font-weight:800;letter-spacing:1.9px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.label}</div>
@@ -488,7 +492,7 @@ function render() {
               <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:#a2914f;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lsub}</div>
             </div>
-            <div style="font-family:'Nunito Sans',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">${lscore}</div>
+            <div class="tv-cnt" data-final="${leaderScoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">0%</div>
           </div>
           ${totalsBlockHtml}
         </div>
@@ -516,6 +520,16 @@ function render() {
       </div>
     </div>
   </div>`;
+
+  // render() is also called directly (resize, the 3-min data refresh) with
+  // no animateScores() to follow — snap every score straight to its final
+  // value so it never gets stuck showing the "0%" placeholder. The
+  // animated 0->final count-up only happens via the explicit runCountUp()
+  // path (initial load, view rotation), which overrides this right after.
+  document.querySelectorAll(".tv-cnt").forEach(el => {
+    const final = parseFloat(el.dataset.final);
+    if (!isNaN(final)) el.textContent = Math.round(final) + "%";
+  });
 }
 
 // Lightweight per-tick chrome update (clock/date/day-progress/pips) that
@@ -545,20 +559,31 @@ function updateChrome() {
 }
 
 // render() rebuilds the whole board's DOM, including every avatar <img>.
-// Driving the count-up at 60fps via requestAnimationFrame recreated those
-// images ~60 times in one second, which is what caused the card/number
-// flicker on every load and every view rotation. A coarser, timeout-driven
-// count-up (a dozen steps instead of ~60) still reads as a smooth animation
-// but cuts the number of full rebuilds by 5x.
+// Calling it on every animation step (even throttled to 12 steps/sec)
+// still recreated every image a dozen times in a row, which is what kept
+// causing visible flicker during the 0% -> final count-up. Only the score
+// percentage text actually changes during that animation — everything
+// else (avatars, names, KPI grids, bars) is identical before and after —
+// so render() now runs exactly ONCE per data/view change, and the count-up
+// only updates text on the tagged `.tv-cnt` elements directly, with zero
+// DOM rebuilds.
 function runCountUp() {
+  render();
+  animateScores();
+}
+function animateScores() {
   clearTimeout(window._tvCountTimer);
-  const STEPS = 12, dur = 900;
+  const nodes = Array.from(document.querySelectorAll(".tv-cnt"));
+  const STEPS = 16, dur = 900;
   let i = 0;
   const step = () => {
     try {
       const k = Math.min(1, i / STEPS);
-      STATE.anim = 1 - Math.pow(1 - k, 3);
-      render();
+      const eased = 1 - Math.pow(1 - k, 3);
+      nodes.forEach(el => {
+        const final = parseFloat(el.dataset.final);
+        if (!isNaN(final)) el.textContent = Math.round(final * eased) + "%";
+      });
       i++;
       if (k < 1) window._tvCountTimer = setTimeout(step, dur / STEPS);
     } catch (e) {
@@ -567,7 +592,6 @@ function runCountUp() {
       window._tvCountTimer = setTimeout(step, dur / STEPS);
     }
   };
-  STATE.anim = 0;
   step();
 }
 
