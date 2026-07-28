@@ -544,25 +544,31 @@ function updateChrome() {
   }).join("");
 }
 
-// A single thrown error inside the rAF loop would otherwise abort the chain
-// silently (no requestAnimationFrame(step) reached) and freeze the kiosk
-// with no console visible to notice — so each frame is defensive.
+// render() rebuilds the whole board's DOM, including every avatar <img>.
+// Driving the count-up at 60fps via requestAnimationFrame recreated those
+// images ~60 times in one second, which is what caused the card/number
+// flicker on every load and every view rotation. A coarser, timeout-driven
+// count-up (a dozen steps instead of ~60) still reads as a smooth animation
+// but cuts the number of full rebuilds by 5x.
 function runCountUp() {
-  cancelAnimationFrame(window._tvRaf);
-  const t0 = performance.now(), dur = 1000;
-  const step = t => {
+  clearTimeout(window._tvCountTimer);
+  const STEPS = 12, dur = 900;
+  let i = 0;
+  const step = () => {
     try {
-      const k = Math.min(1, (t - t0) / dur);
+      const k = Math.min(1, i / STEPS);
       STATE.anim = 1 - Math.pow(1 - k, 3);
       render();
-      if (k < 1) window._tvRaf = requestAnimationFrame(step);
+      i++;
+      if (k < 1) window._tvCountTimer = setTimeout(step, dur / STEPS);
     } catch (e) {
-      console.error("TV board countUp frame failed:", e.message);
-      window._tvRaf = requestAnimationFrame(step);
+      console.error("TV board countUp step failed:", e.message);
+      i++;
+      window._tvCountTimer = setTimeout(step, dur / STEPS);
     }
   };
   STATE.anim = 0;
-  window._tvRaf = requestAnimationFrame(step);
+  step();
 }
 
 let _tick = null;
