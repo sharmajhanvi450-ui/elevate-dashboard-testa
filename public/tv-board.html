@@ -297,7 +297,7 @@ function personCard(p, i, isCloser) {
         </div>
       </div>
       <div style="text-align:right;flex:none;width:92px">
-        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:46px;font-weight:900;line-height:0.95;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
+        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(${isCloser?2:3},minmax(0,1fr));gap:7px;flex:1;min-height:0">${kpisHtml}</div>
