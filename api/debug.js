@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const token = td.access_token;
     const h = { Authorization: `Zoho-oauthtoken ${token}`, "Content-Type": "application/json" };
 
-    async function coqlAll(baseQuery) {
+    async function coqlAll(baseQuery, cap = 2000) {
       let all = [], offset = 0;
       while (true) {
         const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
@@ -34,42 +34,36 @@ export default async function handler(req, res) {
         all = all.concat(d.data);
         if (!d.info?.more_records) break;
         offset += 200;
-        if (offset >= 2000) break;
+        if (offset >= cap) break;
       }
       return all;
     }
 
-    const monthStart = req.query.monthStart || "2026-07-01";
-    const monthEnd   = req.query.monthEnd   || "2026-07-31";
+    // Sample of Connected leads with their actual New_Lead_Worked_Date + Modified_Time
+    const sample = await coqlAll(
+      `select id, Owner, New_Lead_Worked_Date, Modified_Time, Lead_Assigned_Date, Qualified_Lead_Date from Leads where Connectivity = 'Connected'`,
+      200
+    );
 
-    // All-time, no date filter — should be close to the "500" Zoho shows
-    const allTimeLeads = await coqlAll(`select id, Owner from Leads where Connectivity = 'Connected'`);
-    const allTimeContacts = await coqlAll(`select id, Owner from Contacts where Connectivity = 'Connected'`);
-    const allTimeDeals = await coqlAll(`select id, Owner from Deals where Connectivity = 'Connected'`);
+    const dateBuckets = {};
+    sample.forEach(r => {
+      const v = r.New_Lead_Worked_Date;
+      const key = v ? String(v).slice(0, 7) : "<<null>>"; // YYYY-MM
+      dateBuckets[key] = (dateBuckets[key] || 0) + 1;
+    });
 
-    // This month only (New_Lead_Worked_Date in range) + Connectivity — what the dashboard computes
-    const monthLeads = await coqlAll(`select id, Owner from Leads where New_Lead_Worked_Date >= '${monthStart}' and New_Lead_Worked_Date <= '${monthEnd}' and Connectivity = 'Connected'`);
-    const monthContacts = await coqlAll(`select id, Owner from Contacts where New_Lead_Worked_Date >= '${monthStart}' and New_Lead_Worked_Date <= '${monthEnd}' and Connectivity = 'Connected'`);
-    const monthDeals = await coqlAll(`select id, Owner from Deals where New_Lead_Worked_Date >= '${monthStart}' and New_Lead_Worked_Date <= '${monthEnd}' and Connectivity = 'Connected'`);
-
-    // How many Connected leads have a New_Lead_Worked_Date OUTSIDE this month (or null)?
-    const leadsConnectedButNotWorkedThisMonth = allTimeLeads.length - monthLeads.length;
+    // Total leads (any Connectivity) whose New_Lead_Worked_Date is in July, to
+    // check whether the field itself has ANY July data at all.
+    const anyJulyWorked = await coqlAll(
+      `select id from Leads where New_Lead_Worked_Date >= '2026-07-01' and New_Lead_Worked_Date <= '2026-07-31'`,
+      200
+    );
 
     return res.status(200).json({
-      monthRange: [monthStart, monthEnd],
-      all_time: {
-        leads: allTimeLeads.length,
-        contacts: allTimeContacts.length,
-        deals: allTimeDeals.length,
-        total: allTimeLeads.length + allTimeContacts.length + allTimeDeals.length,
-      },
-      this_month_only: {
-        leads: monthLeads.length,
-        contacts: monthContacts.length,
-        deals: monthDeals.length,
-        total: monthLeads.length + monthContacts.length + monthDeals.length,
-      },
-      leads_connected_but_worked_outside_this_month: leadsConnectedButNotWorkedThisMonth,
+      sample_size: sample.length,
+      new_lead_worked_date_month_distribution: dateBuckets,
+      sample_records: sample.slice(0, 5),
+      any_leads_worked_in_july_regardless_of_connectivity: anyJulyWorked.length,
     });
 
   } catch (e) {
