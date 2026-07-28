@@ -314,7 +314,9 @@ function personCard(p, i, isCloser) {
 
 function teamCard(team, members) {
   const active = members.filter(m => !m.onLeave);
-  const health = active.length ? Math.round(active.reduce((s,m) => s + m.score, 0) / active.length) : 0;
+  // On-leave members count as 0 toward the team average (their score is
+  // already 0 from loadData), so health reflects the whole roster.
+  const health = members.length ? Math.round(members.reduce((s,m) => s + m.score, 0) / members.length) : 0;
   const t = TIER[zone(health)];
   const sortedMembers = [...active.sort((a,b) => b.score - a.score), ...members.filter(m => m.onLeave)];
   const membersHtml = sortedMembers.map(m => {
@@ -378,13 +380,14 @@ function render() {
     const teamNames = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
     const teams = teamNames.map(name => {
       const members = all.filter(m => m.team === name);
-      const active = members.filter(m => !m.onLeave);
-      const health = active.length ? Math.round(active.reduce((s,m) => s+m.score, 0) / active.length) : 0;
+      // On-leave members count as 0 toward the average, so health reflects
+      // the whole roster rather than just who's active today.
+      const health = members.length ? Math.round(members.reduce((s,m) => s+m.score, 0) / members.length) : 0;
       return { name, members, health };
     });
     cols = 3;
     cardsHtml = teams.map(t => teamCard(t.name, t.members)).join("");
-    viewTitle = "Team Leader Board"; viewSub = "Team health score · average of active member scores";
+    viewTitle = "Team Leader Board"; viewSub = "Team health score · average of all member scores";
     const best = teams.slice().sort((a,b) => b.health - a.health)[0] || { name: "—", health: 0 };
     leaderHtml = `${initials(best.name)}|${best.name}|TOP TEAM`;
     leaderScoreFinal = best.health;
@@ -392,7 +395,7 @@ function render() {
       const tk = TIER[zone(t.health)];
       return { label: t.name, value: t.health+"%", hint: t.members.length+" members", color: tk.ink, bar: Math.min(100,(t.health/150)*100).toFixed(0) };
     });
-    tickerText = teams.map(t => t.name.toUpperCase()+" "+t.health+"%").join("   ·   ") + "   ·   TEAM HEALTH EXCLUDES MEMBERS ON LEAVE   ·   ";
+    tickerText = teams.map(t => t.name.toUpperCase()+" "+t.health+"%").join("   ·   ") + "   ·   TEAM HEALTH INCLUDES MEMBERS ON LEAVE   ·   ";
   } else if (view === 1) {
     cols = 4;
     cardsHtml = closers.map((p,i) => personCard(p, i, true)).join("");
