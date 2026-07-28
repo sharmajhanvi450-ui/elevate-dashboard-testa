@@ -446,19 +446,19 @@ function render() {
               <span style="font-size:14px;font-weight:800;letter-spacing:2.4px;color:#ff8a78">${STATE.isLive ? "LIVE" : "HISTORICAL"}</span>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-              <div style="font-size:13px;font-weight:700;letter-spacing:2.2px;color:#7b86ad;text-transform:uppercase">${dateLabel}</div>
+              <div id="tv-datelabel" style="font-size:13px;font-weight:700;letter-spacing:2.2px;color:#7b86ad;text-transform:uppercase">${dateLabel}</div>
               <div style="display:flex;align-items:center;gap:10px">
                 <div style="width:150px;height:5px;border-radius:3px;background:rgba(255,255,255,0.1);overflow:hidden">
-                  <div style="height:5px;border-radius:3px;background:linear-gradient(90deg,#ff4d3a,#ffab00);width:${Math.round(frac*100)}%"></div>
+                  <div id="tv-fracbar" style="height:5px;border-radius:3px;background:linear-gradient(90deg,#ff4d3a,#ffab00);width:${Math.round(frac*100)}%"></div>
                 </div>
-                <span style="font-size:13px;font-weight:800;color:#ffab00;font-variant-numeric:tabular-nums">${Math.round(frac*100)}% OF DAY</span>
+                <span id="tv-fracpct" style="font-size:13px;font-weight:800;color:#ffab00;font-variant-numeric:tabular-nums">${Math.round(frac*100)}% OF DAY</span>
               </div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
+              <div id="tv-clock" style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:2.4px;color:#7b86ad">EST</div>
             </div>
-            <div style="display:flex;align-items:center;gap:7px">${pipsHtml}</div>
+            <div id="tv-pips" style="display:flex;align-items:center;gap:7px">${pipsHtml}</div>
           </div>
         </div>
 
@@ -501,6 +501,32 @@ function render() {
   </div>`;
 }
 
+// Lightweight per-tick chrome update (clock/date/day-progress/pips) that
+// patches only those DOM nodes directly, instead of rebuilding the whole
+// board every 500ms — a full render() reset the ticker's CSS animation and
+// reloaded every avatar <img> on each tick, which is what caused the
+// screen-blink and the "stuck" marquee.
+function updateChrome() {
+  const clockEl = document.getElementById("tv-clock");
+  if (!clockEl) return; // board not rendered yet
+  const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
+  const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
+  const est = estNow();
+  const h = est.getHours() + est.getMinutes() / 60;
+  const frac = h <= WORK_START_H ? 0.01 : h >= WORK_END_H ? 1 : (h - WORK_START_H) / WORK_HOURS;
+  clockEl.textContent = clock;
+  document.getElementById("tv-datelabel").textContent = dateLabel;
+  document.getElementById("tv-fracbar").style.width = Math.round(frac*100)+"%";
+  document.getElementById("tv-fracpct").textContent = Math.round(frac*100)+"% OF DAY";
+  const view = STATE.view;
+  document.getElementById("tv-pips").innerHTML = [0,1,2].map(i => {
+    const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / ROTATE_SECONDS) * 100).toFixed(0);
+    return `<div style="width:34px;height:5px;border-radius:3px;background:rgba(255,255,255,0.12);overflow:hidden">
+      <div style="height:5px;border-radius:3px;background:#eef0f7;width:${fill}%"></div>
+    </div>`;
+  }).join("");
+}
+
 function runCountUp() {
   cancelAnimationFrame(window._tvRaf);
   const t0 = performance.now(), dur = 1000;
@@ -525,7 +551,7 @@ function startTicking() {
       STATE.elapsed = 0;
       runCountUp();
     } else {
-      render();
+      updateChrome();
     }
   }, 500);
 }
