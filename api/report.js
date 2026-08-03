@@ -7,6 +7,13 @@ const API_DOMAIN    = "https://www.zohoapis.in";
 
 // In-memory token cache — reuse access token for 50 min to avoid Zoho rate limits
 let _tokenCache = { token: null, expiresAt: 0 };
+
+// Same idea for the user list: it was being re-fetched on every single
+// invocation, which showed up in Zoho's credit report as ~5.3k Users-module
+// calls in one day purely to re-read a roster that changes maybe once a
+// month. Cached per warm instance.
+let _usersCache = { users: null, expiresAt: 0 };
+const USERS_TTL_MS = 30 * 60 * 1000;
 async function getAccessTokenCached(CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN) {
   if (_tokenCache.token && Date.now() < _tokenCache.expiresAt) return _tokenCache.token;
   const r = await fetch("https://accounts.zoho.in/oauth/v2/token", {
@@ -44,13 +51,18 @@ async function setCached(key, data) {
   });
 }
 
+// Must be awaited by callers: on Vercel the instance is frozen as soon as
+// the response is sent, so a fire-and-forget insert here was killed
+// mid-flight and api_logs stayed permanently empty.
 async function logAPI(type, role, date_range, triggered_by, duration_ms) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
-  fetch(`${SUPABASE_URL}/rest/v1/api_logs`, {
-    method: "POST",
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ type, role, date_range, triggered_by, duration_ms })
-  }).catch(() => {});
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/api_logs`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type, role, date_range, triggered_by, duration_ms })
+    });
+  } catch { /* logging must never fail the request */ }
 }
 
 // ── Concurrency limiter + retry, so we don't overrun Zoho's rate limit and
@@ -198,7 +210,7 @@ export default async function handler(req, res) {
     const cached = await getCached(cacheKey);
     if (cached) {
       res.setHeader("X-Cache", "HIT");
-      logAPI("cache_hit", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
+      await logAPI("cache_hit", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(cached);
     }
   } catch(_) { /* cache miss — proceed normally */ }
@@ -230,8 +242,14 @@ export default async function handler(req, res) {
 
     const token = await getAccessToken();
 
-    const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=ActiveUsers&per_page=200`);
-    const allUsers = ud?.users || [];
+    let allUsers;
+    if (_usersCache.users && Date.now() < _usersCache.expiresAt) {
+      allUsers = _usersCache.users;
+    } else {
+      const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=ActiveUsers&per_page=200`);
+      allUsers = ud?.users || [];
+      if (allUsers.length) _usersCache = { users: allUsers, expiresAt: Date.now() + USERS_TTL_MS };
+    }
     const users = allUsers.filter(u => (u.role?.name || "").toLowerCase().includes(role.toLowerCase()));
 
     if (!users.length) {
@@ -319,7 +337,7 @@ export default async function handler(req, res) {
 
       const result = { teams, startDate, endDate, slot, role };
       setCached(cacheKey, result).catch(() => {});
-      logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
+      await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
 
@@ -380,7 +398,7 @@ export default async function handler(req, res) {
       }));
       const result = { closers, startDate, endDate, slot, role };
       setCached(cacheKey, result).catch(() => {});
-      logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
+      await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
 
@@ -424,7 +442,7 @@ export default async function handler(req, res) {
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     const result = { builders, startDate, endDate, slot, role };
     setCached(cacheKey, result).catch(() => {});
-    logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
+    await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
     return res.status(200).json(result);
 
   } catch (e) {

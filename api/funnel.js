@@ -4,6 +4,11 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 const CACHE_TTL_MS = 20 * 60 * 1000;
 
 let _tokenCache = { token: null, expiresAt: 0 };
+// Excluded-owner IDs are derived from the Zoho user list, which was being
+// re-fetched on every invocation just to resolve 3 fixed emails to IDs.
+// Cached per warm instance — see the same note in report.js.
+let _excludedIdsCache = { ids: null, expiresAt: 0 };
+const EXCLUDED_TTL_MS = 30 * 60 * 1000;
 async function getAccessToken() {
   if (_tokenCache.token && Date.now() < _tokenCache.expiresAt) return _tokenCache.token;
   const r = await fetch("https://accounts.zoho.in/oauth/v2/token", {
@@ -152,9 +157,15 @@ export default async function handler(req, res) {
     // Exclude records owned by these generic accounts. COQL returns Owner as
     // {id} only (no email), so resolve their user IDs and filter by id.
     const EXCLUDE_EMAILS = new Set(["bdteamleaders@elevateme.pro", "bde@elevateme.pro", "admissions@elevateme.pro"]);
-    const usersResp = await zohoFetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
-    const usersJson = await usersResp.json().catch(() => ({}));
-    const excludedIds = new Set((usersJson.users || []).filter(u => EXCLUDE_EMAILS.has((u.email || "").toLowerCase())).map(u => u.id));
+    let excludedIds;
+    if (_excludedIdsCache.ids && Date.now() < _excludedIdsCache.expiresAt) {
+      excludedIds = _excludedIdsCache.ids;
+    } else {
+      const usersResp = await zohoFetch(`${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`, { headers: { Authorization: `Zoho-oauthtoken ${token}` } });
+      const usersJson = await usersResp.json().catch(() => ({}));
+      excludedIds = new Set((usersJson.users || []).filter(u => EXCLUDE_EMAILS.has((u.email || "").toLowerCase())).map(u => u.id));
+      if (usersJson.users?.length) _excludedIdsCache = { ids: excludedIds, expiresAt: Date.now() + EXCLUDED_TTL_MS };
+    }
     const keep = arr => arr.filter(r => !excludedIds.has(r.Owner?.id));
 
     // Build COQL WHERE fragments from the optional filters
