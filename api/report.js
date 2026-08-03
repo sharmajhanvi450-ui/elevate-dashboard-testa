@@ -39,16 +39,24 @@ async function getCached(key) {
   return rows[0].data;
 }
 
+// Must be awaited by callers. Vercel freezes the instance as soon as the
+// response is sent, so calling this fire-and-forget meant the write was
+// frequently killed mid-flight — the next request then missed the cache and
+// re-queried Zoho. That is why one cache key logged ~82 zoho_call hits in 27
+// minutes despite a 20-minute TTL. Failures are swallowed in here so a cache
+// problem can never fail the request itself.
 async function setCached(key, data) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
-  await fetch(`${SUPABASE_URL}/rest/v1/report_cache`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
-      "Content-Type": "application/json", Prefer: "resolution=merge-duplicates"
-    },
-    body: JSON.stringify({ cache_key: key, data, created_at: new Date().toISOString() })
-  });
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/report_cache`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json", Prefer: "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({ cache_key: key, data, created_at: new Date().toISOString() })
+    });
+  } catch { /* cache write is best-effort */ }
 }
 
 // Must be awaited by callers: on Vercel the instance is frozen as soon as
@@ -336,7 +344,7 @@ export default async function handler(req, res) {
       });
 
       const result = { teams, startDate, endDate, slot, role };
-      setCached(cacheKey, result).catch(() => {});
+      await setCached(cacheKey, result);
       await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
@@ -397,7 +405,7 @@ export default async function handler(req, res) {
         revenue: Math.round(b.newUpfront + b.futureUpfront),
       }));
       const result = { closers, startDate, endDate, slot, role };
-      setCached(cacheKey, result).catch(() => {});
+      await setCached(cacheKey, result);
       await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
       return res.status(200).json(result);
     }
@@ -441,7 +449,7 @@ export default async function handler(req, res) {
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
     const result = { builders, startDate, endDate, slot, role };
-    setCached(cacheKey, result).catch(() => {});
+    await setCached(cacheKey, result);
     await logAPI("zoho_call", role, `${startDate} to ${endDate}`, "user", Date.now() - t0);
     return res.status(200).json(result);
 

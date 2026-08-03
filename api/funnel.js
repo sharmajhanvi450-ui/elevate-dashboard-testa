@@ -38,13 +38,19 @@ async function getCached(key) {
   return rows[0].data;
 }
 
+// Must be awaited by callers — Vercel freezes the instance once the response
+// is sent, so a fire-and-forget write here gets killed mid-flight and the
+// next request misses the cache and re-queries Zoho. See the same note in
+// report.js. Failures are swallowed so a cache problem can't fail the request.
 async function setCached(key, data) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
-  fetch(`${SUPABASE_URL}/rest/v1/report_cache`, {
-    method: "POST",
-    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify({ cache_key: key, data, created_at: new Date().toISOString() })
-  }).catch(() => {});
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/report_cache`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify({ cache_key: key, data, created_at: new Date().toISOString() })
+    });
+  } catch { /* cache write is best-effort */ }
 }
 
 function logAPI(type, role, date_range, triggered_by, duration_ms) {
@@ -247,7 +253,7 @@ export default async function handler(req, res) {
       startDate, endDate
     };
 
-    setCached(cacheKey, result);
+    await setCached(cacheKey, result);
     logAPI("zoho_call", "funnel", `${startDate} to ${endDate}`, "user", Date.now() - t0);
     return res.status(200).json(result);
 
