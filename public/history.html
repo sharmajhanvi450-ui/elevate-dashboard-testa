@@ -330,7 +330,7 @@ function applyAndRender(){
     + (person !== "all" ? ` · ${person}` : "");
 
   if (!rows.length){
-    document.getElementById("results").innerHTML = `<div class="empty">Is filter/range mein koi saved data nahi mila.</div>`;
+    document.getElementById("results").innerHTML = `<div class="empty">No saved data found for this filter/range.</div>`;
     document.getElementById("daily-wrap").innerHTML = "";
     document.getElementById("toggle-daily").style.display = "none";
     return;
