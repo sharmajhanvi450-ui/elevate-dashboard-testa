@@ -19,12 +19,13 @@
                       radial-gradient(ellipse at 80% 80%, rgba(0,230,118,0.04) 0%, transparent 50%);
   }
   header {
-    background: #000; padding: 14px 28px;
+    background: #000; padding: 14px 24px;
     display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid var(--border);
   }
-  .logo { font-size: 20px; font-weight: 800; }
-  .logo span { color: var(--accent); }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-img { height: 36px; width: auto; display: block; }
+  .logo-sub { font-size: 15px; font-weight: 400; color: #888; letter-spacing: 0.2px; }
   .nav-links { display: flex; gap: 8px; }
   .nav-btn {
     padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
@@ -103,7 +104,10 @@
 <body>
 
 <header>
-  <div class="logo">Elevate<span>Me</span></div>
+  <div class="logo">
+    <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
+    <span class="logo-sub">Manage TV Slides</span>
+  </div>
   <div class="nav-links" id="nav-links"></div>
 </header>
 
@@ -137,9 +141,14 @@ const BUCKET_URL = `${SUPABASE_URL}/storage/v1/object/public/tv-slides/`;
 function buildNav() {
   const pages = [
     { label: "Dashboard", href: "/" },
+    { label: "History", href: "/history.html" },
+    { label: "Combined", href: "/combined.html" },
+    { label: "BDE", href: "/bde.html" },
+    { label: "Funnel", href: "/funnel.html" },
     { label: "Attendance", href: "/attendance.html" },
     { label: "TV Board", href: "/tv-board.html" },
     { label: "Manage Slides", href: "/manage-slides.html" },
+    { label: "Admin Panel", href: "/admin.html" },
   ];
   const currentPage = window.location.pathname;
   document.getElementById("nav-links").innerHTML = pages.map(p =>

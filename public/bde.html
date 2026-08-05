@@ -9,10 +9,10 @@
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--bg:#080b14;--surface:#0f1322;--border:#1e2640;--text:#e8eaf6;--muted:#6b7499;--accent:#ff4d3a;--green:#00e676;--gold:#ffd740;--blue:#40c4ff}
   body{background:var(--bg);color:var(--text);font-family:"Nunito Sans",sans-serif;min-height:100vh}
-  header{background:#000;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-  .logo{display:flex;align-items:center;gap:10px}
-  .logo-img{height:32px}
-  .logo-sub{font-size:13px;color:var(--muted);font-weight:600}
+  header{background:#000;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo-img{height:36px;width:auto;display:block}
+  .logo-sub{font-size:15px;color:#888;font-weight:400;letter-spacing:0.2px}
   .nav-links{display:flex;gap:8px}
   .nav-btn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--border);color:var(--muted);text-decoration:none;transition:all 0.2s;background:none;cursor:pointer}
   .nav-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -186,6 +186,8 @@ const NAV = [
   { label:"BDE", href:"/bde.html", active:true },
   { label:"Funnel", href:"/funnel.html" },
   { label:"Attendance", href:"/attendance.html" },
+  { label:"TV Board", href:"/tv-board.html" },
+  { label:"Manage Slides", href:"/manage-slides.html" },
   { label:"Admin Panel", href:"/admin.html" },
 ];
 
