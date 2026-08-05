@@ -176,9 +176,24 @@ function dayFraction(dateStr, isCustomRange) {
   return (h - WORK_START_H) / WORK_HOURS;
 }
 
+// ── Promo slides ─────────────────────────────────────────────────────────────
+// Full-screen poster slides shown between the three data boards. To add one,
+// drop the image into public/slides/ and add its filename here — nothing else
+// needs changing. To take one down, delete the line.
+//
+// A slide whose file is missing or fails to load is dropped from the rotation
+// at startup rather than showing a blank screen on the TV, so removing a file
+// without editing this list is also safe.
+const PROMO_SLIDES = [
+  "/slides/live-qa-yeshwanth.png",
+  "/slides/live-qa-kaustubh.png",
+];
+let ACTIVE_SLIDES = [];   // filled in by loadPromoSlides(), only ones that loaded
+let _renderedSlide = null; // which slide is currently in the DOM, so render() can skip no-op rebuilds
+
 // ── State ────────────────────────────────────────────────────────────────────
 let STATE = {
-  view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders
+  view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders, then promo slides
   elapsed: 0,
   scale: 1,
   now: new Date(),
@@ -189,7 +204,19 @@ let STATE = {
   rangeStart: null,
   rangeEnd: null,
 };
+const DATA_VIEWS = 3;
+const totalViews = () => DATA_VIEWS + ACTIVE_SLIDES.length;
 const ROTATE_SECONDS = 30;
+
+// Check each slide actually loads before putting it in the rotation.
+function loadPromoSlides() {
+  return Promise.all(PROMO_SLIDES.map(src => new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(src);
+    img.onerror = () => { console.error("TV board: slide missing, skipping —", src); resolve(null); };
+    img.src = src;
+  }))).then(results => { ACTIVE_SLIDES = results.filter(Boolean); });
+}
 
 // Don't paint until real data has arrived — painting an empty board on
 // initial fit(), then again on the resize event(s) the browser fires right
@@ -360,13 +387,31 @@ function render() {
   document.getElementById("board-root").style.display = "block";
   const { builders, closers } = STATE;
 
+  // Promo slides sit after the three data boards and render full-bleed, with
+  // none of the board chrome — they are posters, not dashboards.
+  if (STATE.view >= DATA_VIEWS) {
+    const src = ACTIVE_SLIDES[STATE.view - DATA_VIEWS];
+    // The 3-minute data refresh also calls render(). Rebuilding the markup
+    // would recreate the <img> and make the poster flash, so only touch the
+    // DOM when the slide has actually changed.
+    if (_renderedSlide !== src) {
+      _renderedSlide = src;
+      document.getElementById("board-root").innerHTML = `
+        <div style="position:fixed;inset:0;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">
+        </div>`;
+    }
+    return;
+  }
+  _renderedSlide = null;   // back on a data board — next slide must rebuild
+
   const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
   const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
   const est = estNow();
   const h = est.getHours() + est.getMinutes() / 60;
   const frac = h <= WORK_START_H ? 0.01 : h >= WORK_END_H ? 1 : (h - WORK_START_H) / WORK_HOURS;
   const view = STATE.view;
-  const pipsHtml = [0,1,2].map(i => {
+  const pipsHtml = Array.from({ length: totalViews() }, (_, i) => i).map(i => {
     const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / ROTATE_SECONDS) * 100).toFixed(0);
     return `<div style="width:34px;height:5px;border-radius:3px;background:rgba(255,255,255,0.12);overflow:hidden">
       <div style="height:5px;border-radius:3px;background:#eef0f7;width:${fill}%"></div>
@@ -553,7 +598,7 @@ function updateChrome() {
   document.getElementById("tv-fracbar").style.width = Math.round(frac*100)+"%";
   document.getElementById("tv-fracpct").textContent = Math.round(frac*100)+"% OF DAY";
   const view = STATE.view;
-  document.getElementById("tv-pips").innerHTML = [0,1,2].map(i => {
+  document.getElementById("tv-pips").innerHTML = Array.from({ length: totalViews() }, (_, i) => i).map(i => {
     const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / ROTATE_SECONDS) * 100).toFixed(0);
     return `<div style="width:34px;height:5px;border-radius:3px;background:rgba(255,255,255,0.12);overflow:hidden">
       <div style="height:5px;border-radius:3px;background:#eef0f7;width:${fill}%"></div>
@@ -606,7 +651,7 @@ function startTicking() {
       STATE.elapsed += 0.5;
       STATE.now = new Date();
       if (STATE.elapsed >= ROTATE_SECONDS) {
-        STATE.view = (STATE.view + 1) % 3;
+        STATE.view = (STATE.view + 1) % totalViews();
         STATE.elapsed = 0;
         runCountUp();
       } else {
@@ -626,9 +671,13 @@ function startDataRefresh() {
 function initBoard() {
   fit();
   window.addEventListener("resize", onResize);
-  startTicking();
-  startDataRefresh();
-  loadData().then(() => { _dataLoadedOnce = true; runCountUp(); });
+  // Work out which slides actually exist before ticking, so the rotation
+  // never lands on a slide that would render blank.
+  loadPromoSlides().then(() => {
+    startTicking();
+    startDataRefresh();
+    loadData().then(() => { _dataLoadedOnce = true; runCountUp(); });
+  });
   // Kiosk safeguard: force a full reload every 4 hours so a tab left open
   // indefinitely always ends up running the latest deployed code and a
   // fresh session, without anyone needing to walk over and refresh it.
