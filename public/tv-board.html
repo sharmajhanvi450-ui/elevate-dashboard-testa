@@ -177,19 +177,38 @@ function dayFraction(dateStr, isCustomRange) {
 }
 
 // ── Promo slides ─────────────────────────────────────────────────────────────
-// Full-screen poster slides shown between the three data boards. To add one,
-// drop the image into public/slides/ and add its filename here — nothing else
-// needs changing. To take one down, delete the line.
-//
-// A slide whose file is missing or fails to load is dropped from the rotation
-// at startup rather than showing a blank screen on the TV, so removing a file
-// without editing this list is also safe.
-const PROMO_SLIDES = [
-  "/slides/live-qa-yeshwanth.png",
-  "/slides/live-qa-kaustubh.png",
-];
+// Full-screen poster slides shown between the three data boards. Managed from
+// /manage-slides.html (upload/reorder/enable/delete) — nothing here needs
+// editing to add, remove or reorder a slide. The list is stored in the
+// `tv_slides` table, pointing at files in the `tv-slides` Storage bucket.
+const SLIDES_BUCKET_URL = `${SUPABASE_URL}/storage/v1/object/public/tv-slides/`;
 let ACTIVE_SLIDES = [];   // filled in by loadPromoSlides(), only ones that loaded
 let _renderedSlide = null; // which slide is currently in the DOM, so render() can skip no-op rebuilds
+
+// Pulls the enabled slide list (in order) from Supabase, then verifies each
+// image actually loads before putting it in the rotation — a slide whose
+// file is missing, or the fetch itself failing, is dropped rather than
+// showing a blank screen on the TV.
+async function loadPromoSlides() {
+  let rows = [];
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/tv_slides?select=storage_path&enabled=eq.true&order=sort_order.asc`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (r.ok) rows = await r.json();
+  } catch (e) {
+    console.error("TV board: failed to load slide list (non-fatal):", e.message);
+  }
+  const urls = rows.map(row => SLIDES_BUCKET_URL + row.storage_path);
+  const results = await Promise.all(urls.map(src => new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(src);
+    img.onerror = () => { console.error("TV board: slide failed to load, skipping —", src); resolve(null); };
+    img.src = src;
+  })));
+  ACTIVE_SLIDES = results.filter(Boolean);
+}
 
 // ── State ────────────────────────────────────────────────────────────────────
 let STATE = {
@@ -207,16 +226,6 @@ let STATE = {
 const DATA_VIEWS = 3;
 const totalViews = () => DATA_VIEWS + ACTIVE_SLIDES.length;
 const ROTATE_SECONDS = 30;
-
-// Check each slide actually loads before putting it in the rotation.
-function loadPromoSlides() {
-  return Promise.all(PROMO_SLIDES.map(src => new Promise(resolve => {
-    const img = new Image();
-    img.onload  = () => resolve(src);
-    img.onerror = () => { console.error("TV board: slide missing, skipping —", src); resolve(null); };
-    img.src = src;
-  }))).then(results => { ACTIVE_SLIDES = results.filter(Boolean); });
-}
 
 // Don't paint until real data has arrived — painting an empty board on
 // initial fit(), then again on the resize event(s) the browser fires right
@@ -665,7 +674,16 @@ function startTicking() {
 let _dataRefresh = null;
 function startDataRefresh() {
   if (_dataRefresh) clearInterval(_dataRefresh);
-  _dataRefresh = setInterval(() => { if (STATE.isLive) loadData(); }, 3 * 60 * 1000);
+  _dataRefresh = setInterval(() => {
+    if (STATE.isLive) loadData();
+    // Re-check the slide list too, so uploading/removing/reordering a slide
+    // from Manage Slides shows up on the TV within a few minutes — no
+    // restart needed. If the list shrank while a now-missing slide happened
+    // to be showing, snap back to view 0 rather than rendering a blank slot.
+    loadPromoSlides().then(() => {
+      if (STATE.view >= totalViews()) { STATE.view = 0; STATE.elapsed = 0; }
+    });
+  }, 3 * 60 * 1000);
 }
 
 function initBoard() {

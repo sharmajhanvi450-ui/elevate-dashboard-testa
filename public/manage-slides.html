@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElevateMe — Manage TV Slides</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080b14; --surface: #0f1322; --border: #1e2640;
+    --text: #e8eaf6; --muted: #6b7499;
+    --accent: #ff4d3a; --accent-green: #00e676;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Nunito Sans', sans-serif; min-height: 100vh;
+    background-image: radial-gradient(ellipse at 20% 10%, rgba(196,72,56,0.06) 0%, transparent 50%),
+                      radial-gradient(ellipse at 80% 80%, rgba(0,230,118,0.04) 0%, transparent 50%);
+  }
+  header {
+    background: #000; padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: 20px; font-weight: 800; }
+  .logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 8px; }
+  .nav-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--border); color: var(--muted); text-decoration: none;
+    transition: all 0.2s; background: none;
+  }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .container { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .page-header p { font-size: 13px; color: var(--muted); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 800; margin-bottom: 14px; }
+
+  .upload-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type="text"], input[type="file"] {
+    background: #05060b; border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit;
+  }
+  input[type="text"] { flex: 1; min-width: 180px; }
+  input[type="file"] { flex: 1; min-width: 220px; }
+  .btn {
+    border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 800;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.88; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { background: none; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: none; border: 1px solid #ff1744; color: #ff1744; }
+  .btn-danger:hover { background: rgba(255,23,68,0.1); opacity: 1; }
+  .btn-icon { padding: 6px 10px; font-size: 14px; line-height: 1; }
+
+  #upload-status { font-size: 12px; margin-top: 10px; min-height: 16px; }
+  #upload-status.ok { color: var(--accent-green); }
+  #upload-status.err { color: #ff1744; }
+
+  .slide-row {
+    display: flex; align-items: center; gap: 14px; padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .slide-row:last-child { border-bottom: none; }
+  .slide-thumb {
+    width: 100px; height: 56px; flex: none; border-radius: 8px; overflow: hidden;
+    background: #05060b; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .slide-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .slide-info { flex: 1; min-width: 0; }
+  .slide-label { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slide-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .slide-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+  .toggle {
+    position: relative; width: 40px; height: 22px; border-radius: 999px;
+    background: #2a2f45; border: 1px solid var(--border); cursor: pointer; flex: none;
+    transition: background 0.15s;
+  }
+  .toggle.on { background: var(--accent-green); border-color: var(--accent-green); }
+  .toggle .knob {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; transition: left 0.15s;
+  }
+  .toggle.on .knob { left: 20px; }
+
+  .empty-note { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Elevate<span>Me</span></div>
+  <div class="nav-links" id="nav-links"></div>
+</header>
+
+<div class="container">
+  <div class="page-header">
+    <h1>Manage TV Slides</h1>
+    <p>Upload, reorder, enable/disable or remove the promo slides shown on the TV Board — no code change needed. Changes appear on the TV within about 3 minutes, or immediately after a page refresh.</p>
+  </div>
+
+  <div class="card">
+    <h2>Add a slide</h2>
+    <div class="upload-row">
+      <input type="text" id="new-label" placeholder="Label (e.g. Live Q&A — Meet Yeshwanth)">
+      <input type="file" id="new-file" accept="image/*">
+      <button class="btn btn-primary" id="btn-upload">Upload</button>
+    </div>
+    <div id="upload-status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Slides — in rotation order</h2>
+    <div id="slide-list"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
+const BUCKET_URL = `${SUPABASE_URL}/storage/v1/object/public/tv-slides/`;
+
+function buildNav() {
+  const pages = [
+    { label: "Dashboard", href: "/" },
+    { label: "Attendance", href: "/attendance.html" },
+    { label: "TV Board", href: "/tv-board.html" },
+    { label: "Manage Slides", href: "/manage-slides.html" },
+  ];
+  const currentPage = window.location.pathname;
+  document.getElementById("nav-links").innerHTML = pages.map(p =>
+    `<a href="${p.href}" class="nav-btn${currentPage === p.href ? " active" : ""}">${p.label}</a>`
+  ).join("");
+}
+buildNav();
+
+async function fetchSlides() {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/tv_slides?select=*&order=sort_order.asc`, {
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }
+  });
+  if (!r.ok) throw new Error("Failed to load slides (" + r.status + ")");
+  return r.json();
+}
+
+async function patchSlide(id, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/tv_slides?id=eq.${id}`, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`,
+      "Content-Type": "application/json", Prefer: "return=minimal"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error("Update failed (" + r.status + ")");
+}
+
+async function deleteSlide(row) {
+  // Best-effort storage cleanup — if this fails (e.g. already gone), the DB
+  // row is still removed so the slide disappears from the TV either way.
+  await fetch(`${SUPABASE_URL}/storage/v1/object/tv-slides/${encodeURIComponent(row.storage_path)}`, {
+    method: "DELETE",
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }
+  }).catch(() => {});
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/tv_slides?id=eq.${row.id}`, {
+    method: "DELETE",
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }
+  });
+  if (!r.ok) throw new Error("Delete failed (" + r.status + ")");
+}
+
+function slideRowHtml(row, index, total) {
+  const thumbSrc = BUCKET_URL + encodeURIComponent(row.storage_path);
+  return `<div class="slide-row" data-id="${row.id}">
+    <div class="slide-thumb"><img src="${thumbSrc}" alt="" loading="lazy"></div>
+    <div class="slide-info">
+      <div class="slide-label">${row.label || row.storage_path}</div>
+      <div class="slide-meta">${row.storage_path} · ${row.enabled ? "On" : "Off"} in rotation</div>
+    </div>
+    <div class="slide-actions">
+      <button class="btn btn-ghost btn-icon" data-action="up" ${index === 0 ? "disabled" : ""} title="Move up">↑</button>
+      <button class="btn btn-ghost btn-icon" data-action="down" ${index === total - 1 ? "disabled" : ""} title="Move down">↓</button>
+      <div class="toggle ${row.enabled ? "on" : ""}" data-action="toggle" title="${row.enabled ? "Disable" : "Enable"}"><div class="knob"></div></div>
+      <button class="btn btn-danger btn-icon" data-action="delete" title="Delete">✕</button>
+    </div>
+  </div>`;
+}
+
+let SLIDES = [];
+
+async function renderList() {
+  const listEl = document.getElementById("slide-list");
+  try {
+    SLIDES = await fetchSlides();
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-note">Couldn't load slides: ${e.message}</div>`;
+    return;
+  }
+  if (!SLIDES.length) {
+    listEl.innerHTML = `<div class="empty-note">No slides yet — upload one above.</div>`;
+    return;
+  }
+  listEl.innerHTML = SLIDES.map((row, i) => slideRowHtml(row, i, SLIDES.length)).join("");
+}
+
+document.getElementById("slide-list").addEventListener("click", async (e) => {
+  const actionEl = e.target.closest("[data-action]");
+  if (!actionEl) return;
+  const rowEl = e.target.closest(".slide-row");
+  const id = Number(rowEl.dataset.id);
+  const idx = SLIDES.findIndex(s => s.id === id);
+  if (idx === -1) return;
+  const row = SLIDES[idx];
+  const action = actionEl.dataset.action;
+
+  try {
+    if (action === "toggle") {
+      await patchSlide(id, { enabled: !row.enabled });
+    } else if (action === "delete") {
+      if (!confirm(`Delete "${row.label || row.storage_path}"? This removes the file too.`)) return;
+      await deleteSlide(row);
+    } else if (action === "up" && idx > 0) {
+      const other = SLIDES[idx - 1];
+      await Promise.all([
+        patchSlide(row.id, { sort_order: other.sort_order }),
+        patchSlide(other.id, { sort_order: row.sort_order }),
+      ]);
+    } else if (action === "down" && idx < SLIDES.length - 1) {
+      const other = SLIDES[idx + 1];
+      await Promise.all([
+        patchSlide(row.id, { sort_order: other.sort_order }),
+        patchSlide(other.id, { sort_order: row.sort_order }),
+      ]);
+    }
+    await renderList();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.getElementById("btn-upload").addEventListener("click", async () => {
+  const fileInput = document.getElementById("new-file");
+  const labelInput = document.getElementById("new-label");
+  const statusEl = document.getElementById("upload-status");
+  const btn = document.getElementById("btn-upload");
+  const file = fileInput.files[0];
+
+  if (!file) { statusEl.className = "err"; statusEl.textContent = "Choose an image file first."; return; }
+
+  btn.disabled = true;
+  statusEl.className = ""; statusEl.textContent = "Uploading…";
+  try {
+    // Prefix with a timestamp so re-uploading a same-named file never
+    // collides with (or silently replaces) an existing slide.
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${Date.now()}-${safeName}`;
+
+    const upload = await fetch(`${SUPABASE_URL}/storage/v1/object/tv-slides/${path}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": file.type || "image/png" },
+      body: file
+    });
+    if (!upload.ok) throw new Error("Upload failed (" + upload.status + ")");
+
+    const maxOrder = SLIDES.reduce((m, s) => Math.max(m, s.sort_order), 0);
+    const insert = await fetch(`${SUPABASE_URL}/rest/v1/tv_slides`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json", Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ storage_path: path, label: labelInput.value || file.name, sort_order: maxOrder + 1, enabled: true })
+    });
+    if (!insert.ok) throw new Error("Save failed (" + insert.status + ")");
+
+    statusEl.className = "ok"; statusEl.textContent = "Uploaded.";
+    fileInput.value = ""; labelInput.value = "";
+    await renderList();
+  } catch (e) {
+    statusEl.className = "err"; statusEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+renderList();
+</script>
+</body>
+</html>

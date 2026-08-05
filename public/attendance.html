@@ -190,6 +190,8 @@ function buildNav(email) {
   const pages = [
     { label: "Dashboard", href: "/" },
     { label: "Attendance", href: "/attendance.html" },
+    { label: "TV Board", href: "/tv-board.html" },
+    { label: "Manage Slides", href: "/manage-slides.html" },
     ...(isAdmin ? [{ label: "Admin Panel", href: "/admin.html" }] : [])
   ];
   const navEl = document.getElementById("nav-links");
