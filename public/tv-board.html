@@ -163,14 +163,24 @@ async function fetchLeaveMap(startDate, endDate) {
 
 // Working-hours day-fraction proration (today only) — mirrors index.html.
 const WORK_START_H = 10.5, WORK_END_H = 19.5, WORK_HOURS = 9.0;
-function estNow() { return new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" })); }
-function fmtDate(d) { return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" }); }
+function etParts() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  }).formatToParts(new Date()).reduce((a, p) => (a[p.type] = p.value, a), {});
+}
+// Today's date in America/New_York as YYYY-MM-DD.
+// Previously this was fmtDate(estNow()), which converted to Eastern twice —
+// once building estNow() and again in fmtDate — shifting the result 9.5h back
+// and making the board request YESTERDAY's data between midnight and ~10am ET.
+function todayET() { const p = etParts(); return `${p.year}-${p.month}-${p.day}`; }
+// Eastern wall-clock hour as a decimal (e.g. 14.5 for 2:30pm).
+function etHour() { const p = etParts(); return Number(p.hour) + Number(p.minute) / 60; }
 function dayFraction(dateStr, isCustomRange) {
   if (isCustomRange) return 1; // a picked historical range is always "full"
-  const todayEST = fmtDate(estNow());
-  if (dateStr !== todayEST) return 1;
-  const now = estNow();
-  const h = now.getHours() + now.getMinutes() / 60;
+  if (dateStr !== todayET()) return 1;
+  const h = etHour();
   if (h <= WORK_START_H) return 0.01;
   if (h >= WORK_END_H) return 1;
   return (h - WORK_START_H) / WORK_HOURS;
@@ -248,7 +258,7 @@ function onResize() {
 // a few consecutive misses so it comes back with a fresh session.
 let _consecutiveLoadFailures = 0;
 async function loadData() {
-  const today = fmtDate(estNow());
+  const today = todayET();
   const startDate = STATE.isLive ? today : STATE.rangeStart;
   const endDate = STATE.isLive ? today : STATE.rangeEnd;
   try {
@@ -416,8 +426,7 @@ function render() {
 
   const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
   const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
-  const est = estNow();
-  const h = est.getHours() + est.getMinutes() / 60;
+  const h = etHour();
   const frac = h <= WORK_START_H ? 0.01 : h >= WORK_END_H ? 1 : (h - WORK_START_H) / WORK_HOURS;
   const view = STATE.view;
   const pipsHtml = Array.from({ length: totalViews() }, (_, i) => i).map(i => {
@@ -599,8 +608,7 @@ function updateChrome() {
   if (!clockEl) return; // board not rendered yet
   const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
   const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
-  const est = estNow();
-  const h = est.getHours() + est.getMinutes() / 60;
+  const h = etHour();
   const frac = h <= WORK_START_H ? 0.01 : h >= WORK_END_H ? 1 : (h - WORK_START_H) / WORK_HOURS;
   clockEl.textContent = clock;
   document.getElementById("tv-datelabel").textContent = dateLabel;
