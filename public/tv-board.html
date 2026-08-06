@@ -135,6 +135,37 @@ const TIER = {
 const RGB = { gold:"255,215,64", green:"0,230,118", yellow:"255,171,0", orange:"255,109,0", red:"255,23,68", leave:"120,120,170" };
 Object.keys(TIER).forEach(k => { TIER[k].rgb = a => `rgba(${RGB[k]},${a})`; });
 
+// ── BDE Scorecard config ─────────────────────────────────────────────────────
+// Teams, KPIs, daily targets and weights copied verbatim from
+// public/bde-scorecard.html so the TV board and that page always agree.
+const BDE_TEAMS = [
+  { name: "LinkedIn Team", role: "LinkedIn BDE",
+    members: ["Ronak Khant", "Jiya Chandrawanshi", "Bhoomi Barot", "Heer Nakum"],
+    kpis: [
+      { label: "ICP Moderate", note: "Leads Generated", get: b => (b.types||{})["ICP Moderate"]||0, dailyTarget: 4,  weight: 0.70 },
+      { label: "ICP Cold",     note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0,     dailyTarget: 15, weight: 0.30 },
+    ] },
+  { name: "Portal Team", role: "Portal BDE",
+    members: ["Ajay Darbar", "Sunil Patel"],
+    kpis: [
+      { label: "ICP Cold + Parser", note: "Leads Generated", get: b => ((b.types||{})["ICP Cold"]||0) + ((b.types||{})["ICP Parser"]||0), dailyTarget: 120, weight: 1.00 },
+    ] },
+  { name: "Referral Team", role: "Referral BDE",
+    members: ["Meet Patel"],
+    kpis: [
+      { label: "ICP Moderate", note: "Leads Generated",  get: b => (b.types||{})["ICP Moderate"]||0,  dailyTarget: 2,  weight: 0.30 },
+      { label: "ICP Cold",     note: "Leads Generated",  get: b => (b.types||{})["ICP Cold"]||0,      dailyTarget: 10, weight: 0.20 },
+      { label: "Reference",    note: "Source = Reference", get: b => (b.sourceGroups||{}).Reference||0, dailyTarget: 1,  weight: 0.50 },
+    ] },
+];
+const BDE_TEAM_LEADS = {
+  "Ronak Khant": "Dhanraj Solanki", "Jiya Chandrawanshi": "Dhanraj Solanki",
+  "Bhoomi Barot": "Dhanraj Solanki", "Sunil Patel": "Dhanraj Solanki",
+  "Meet Patel": "Dhanraj Solanki", "Heer Nakum": "Prem Thakar", "Ajay Darbar": "Prem Thakar",
+};
+// Summary funnel shown under each BDE card — current + carried-over totals.
+const BDE_FUNNEL = [["Generated","generated"], ["Qualified","qualified"], ["Pres. Held","presHeld"], ["Enrolled","enrolled"]];
+
 const initials = n => n.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
 const slug = n => n.toLowerCase().replace(/\s+/g, "-");
 function avatarBgHtml(name) {
@@ -149,6 +180,75 @@ async function fetchRole(role, startDate, endDate) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `${role} fetch failed`);
   return data;
+}
+async function fetchLeaveMap(startDate, endDate) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/attendance?date=gte.${startDate}&date=lte.${endDate}&status=eq.leave&select=person_name,date`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } });
+    if (!r.ok) return {};
+    const rows = await r.json();
+    const map = {}; rows.forEach(row => { map[row.person_name] = (map[row.person_name] || 0) + 1; });
+    return map;
+  } catch { return {}; }
+}
+
+// BDE data is a separate endpoint. A failure here must not take the whole
+// board down — the other three views still have their data, so this returns
+// an empty list and only the BDE view ends up blank.
+async function fetchBde(startDate, endDate) {
+  try {
+    const res = await fetch(`/api/bde?startDate=${startDate}&endDate=${endDate}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "BDE fetch failed");
+    return data.bdes || [];
+  } catch (e) {
+    console.error("TV board: BDE fetch failed (other views unaffected):", e.message);
+    return [];
+  }
+}
+
+// Builds the BDE view model from the raw /api/bde rows, using the same
+// weighted-KPI scoring as the BD Scorecard page. `wDays` scales the daily
+// targets to the period being shown.
+function buildBdeTeams(bdes, wDays) {
+  const byName = {};
+  bdes.forEach(b => { byName[(b.name||"").toLowerCase()] = b; });
+
+  return BDE_TEAMS.map(team => {
+    const members = team.members.map(name => {
+      const b = byName[name.toLowerCase()] || {};
+      let score = 0;
+      const rows = team.kpis.map(k => {
+        const target = Math.max(1, Math.round(k.dailyTarget * wDays));
+        const actual = k.get(b);
+        const pct = Math.min(150, target > 0 ? (actual / target) * 100 : 0);
+        score += pct * k.weight;
+        return {
+          label: k.label,
+          note: `${k.note} · ${Math.round(k.weight * 100)}%`,
+          actual, target,
+          pctLabel: Math.round(pct) + "%",
+          color: barColor(pct),
+          bar: Math.min(100, (pct / 150) * 100).toFixed(0),
+        };
+      });
+      score = Math.round(score);
+      const cur = b.cur || {}, old = b.old || {};
+      return {
+        name, role: team.role, tl: BDE_TEAM_LEADS[name] || "—",
+        score, tier: zone(score), rows,
+        funnel: BDE_FUNNEL.map(([label, key]) => ({ label, val: ((cur[key]||0) + (old[key]||0)).toLocaleString() })),
+      };
+    }).sort((a, b) => b.score - a.score);
+
+    const avg = members.length ? Math.round(members.reduce((s, m) => s + m.score, 0) / members.length) : 0;
+    return {
+      name: team.name, score: avg, tier: zone(avg),
+      note: team.kpis.map(k => `${k.label} ${k.dailyTarget}/day (${Math.round(k.weight*100)}%)`).join(" · "),
+      span: members.length >= 4 ? 2 : 1,
+      members,
+    };
+  });
 }
 async function fetchLeaveMap(startDate, endDate) {
   try {
@@ -228,12 +328,13 @@ let STATE = {
   now: new Date(),
   builders: [],
   closers: [],
+  bdeTeams: [],
   leaveMap: {},
   isLive: true,
   rangeStart: null,
   rangeEnd: null,
 };
-const DATA_VIEWS = 3;
+const DATA_VIEWS = 4;
 const totalViews = () => DATA_VIEWS + ACTIVE_SLIDES.length;
 const ROTATE_SECONDS = 30;
 
@@ -262,10 +363,11 @@ async function loadData() {
   const startDate = STATE.isLive ? today : STATE.rangeStart;
   const endDate = STATE.isLive ? today : STATE.rangeEnd;
   try {
-    const [leaveMap, builderData, closerData] = await Promise.all([
+    const [leaveMap, builderData, closerData, bdes] = await Promise.all([
       fetchLeaveMap(startDate, endDate),
       fetchRole("Builder", startDate, endDate),
       fetchRole("Closer", startDate, endDate),
+      fetchBde(startDate, endDate),
     ]);
     const frac = dayFraction(endDate, !STATE.isLive);
     const T = Object.fromEntries(Object.entries(B_T).map(([k,v]) => [k, Math.max(1, Math.round(v * frac))]));
@@ -282,6 +384,10 @@ async function loadData() {
       const s = onLeave ? 0 : scoreCloser(c, TC);
       return { ...c, score: s, tier: onLeave ? "leave" : zoneCloser(c, s), role: "Closer", onLeave, team: teamOf(c.name) };
     }).sort((a,b) => (a.onLeave?1:0) - (b.onLeave?1:0) || b.score - a.score);
+
+    // BDE targets are daily rates, so scale them by the same day fraction the
+    // Builder/Closer targets use — the board is showing today, not month-to-date.
+    STATE.bdeTeams = buildBdeTeams(bdes, frac);
 
     STATE.now = new Date();
     _consecutiveLoadFailures = 0;
@@ -402,9 +508,65 @@ function teamCard(team, members) {
   </div>`;
 }
 
+// One BDE's card: KPI rows on top, summary funnel along the bottom.
+function bdeMemberCard(m) {
+  const t = TIER[m.tier];
+  const celebrate = m.tier === "gold";
+  const rowsHtml = m.rows.map(r => `
+    <div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:7px 10px;display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="font-size:12px;font-weight:800;letter-spacing:0.9px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
+        <span style="flex:1;min-width:0;font-size:10px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${r.actual.toLocaleString()}</span>
+        <span style="font-size:11px;font-weight:700;color:#6c769b">/ ${r.target.toLocaleString()}</span>
+        <span style="font-size:13px;font-weight:900;color:${r.color};min-width:44px;text-align:right">${r.pctLabel}</span>
+      </div>
+      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
+        <div style="height:4px;border-radius:2px;background:${r.color};width:${r.bar}%"></div>
+      </div>
+    </div>`).join("");
+
+  const funnelHtml = m.funnel.map(f => `
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.9px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${f.label}</span>
+      <span style="font-family:'Nunito Sans',sans-serif;font-size:18px;font-weight:900;line-height:1;color:#c3cae0;font-variant-numeric:tabular-nums">${f.val}</span>
+    </div>`).join("");
+
+  return `<div style="position:relative;border-radius:14px;padding:13px 15px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 22px ${t.rgb(0.26)}, inset 0 0 46px ${t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:9px;animation:omRise 0.5s ease both">
+    ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:52px;height:52px;border-radius:50%;flex:none;border:2px solid ${t.line};background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-family:'Nunito Sans',sans-serif;font-size:17px;font-weight:900;color:${t.ink}">${initials(m.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:800;line-height:1.05;color:#f4f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#7b86ad;text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.role} · TL ${m.tl}</div>
+        <div style="display:inline-flex;margin-top:5px;padding:3px 9px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</div>
+      </div>
+      <div class="tv-cnt" data-final="${m.score}" style="text-align:right;flex:none;width:84px;font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:0 0 20px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;justify-content:center">${rowsHtml}</div>
+    <div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">${funnelHtml}</div>
+  </div>`;
+}
+
+// A BDE team: header strip with the team average, then its member cards.
+function bdeTeamBlock(bt) {
+  const t = TIER[bt.tier];
+  return `<div style="grid-column:span ${bt.span};min-width:0;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;border:1px solid ${t.line};background:rgba(255,255,255,0.035)">
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:900;letter-spacing:0.4px;color:${t.ink};white-space:nowrap">${bt.name}</div>
+      <div style="padding:2px 9px;border-radius:999px;border:1px solid ${t.ink};font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};white-space:nowrap">${t.label}</div>
+      <div style="flex:1;min-width:0;font-size:11px;font-weight:700;letter-spacing:0.8px;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bt.note}</div>
+      <div class="tv-cnt" data-final="${bt.score}" style="font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;line-height:1;white-space:nowrap;color:${t.ink};font-variant-numeric:tabular-nums">0%</div>
+    </div>
+    <div style="flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(${bt.span},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">
+      ${bt.members.map(bdeMemberCard).join("")}
+    </div>
+  </div>`;
+}
+
 function render() {
   document.getElementById("board-root").style.display = "block";
-  const { builders, closers } = STATE;
+  const { builders, closers, bdeTeams } = STATE;
 
   // Promo slides sit after the three data boards and render full-bleed, with
   // none of the board chrome — they are posters, not dashboards.
@@ -438,7 +600,29 @@ function render() {
 
   let cardsHtml = "", cols = 5, viewTitle = "", viewSub = "", leaderHtml = "", leaderScoreFinal = 0, totalsHtml = "", tickerText = "";
 
-  if (view === 2) {
+  if (view === 3) {
+    cols = 3;
+    cardsHtml = bdeTeams.map(bdeTeamBlock).join("");
+    viewTitle = "BDE Scorecard";
+    viewSub = "Today · weighted lead-generation targets";
+    const allBdes = bdeTeams.flatMap(t => t.members);
+    const top = allBdes.slice().sort((a, b) => b.score - a.score)[0] || { name: "—", score: 0, tier: "red" };
+    leaderHtml = `${initials(top.name)}|${top.name}|TOP BDE · ${TIER[top.tier].label}`;
+    leaderScoreFinal = top.score;
+    totalsHtml = bdeTeams.map(t => ({
+      label: t.name, value: t.score + "%", hint: t.members.length + " BDE",
+      color: TIER[t.tier].ink, bar: Math.min(100, (t.score / 150) * 100).toFixed(0),
+    }));
+    const sumStage = key => allBdes.reduce((s, m) => {
+      const f = m.funnel.find(x => x.label === key);
+      return s + (f ? Number(String(f.val).replace(/,/g, "")) : 0);
+    }, 0);
+    const golds = allBdes.filter(m => m.tier === "gold").length;
+    tickerText = top.name.toUpperCase() + " LEADS THE BDE BOARD AT " + top.score + "%   ·   "
+      + golds + " GOLDEN CARDS   ·   LEADS GENERATED " + sumStage("Generated").toLocaleString()
+      + "   ·   QUALIFIED " + sumStage("Qualified").toLocaleString()
+      + "   ·   ENROLLED " + sumStage("Enrolled").toLocaleString() + "   ·   ";
+  } else if (view === 2) {
     const all = [...builders, ...closers];
     const teamNames = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
     const teams = teamNames.map(name => {
