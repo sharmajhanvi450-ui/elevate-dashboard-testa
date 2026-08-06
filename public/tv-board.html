@@ -512,45 +512,39 @@ function teamCard(team, members) {
 function bdeMemberCard(m) {
   const t = TIER[m.tier];
   const celebrate = m.tier === "gold";
-  // Sizing is deliberately tight: a 4-member team spans two grid columns as a
-  // 2x2, so each card only gets about a quarter of the board's card area. The
-  // earlier, roomier version needed ~217px in a ~157px slot and the KPI rows
-  // spilled over the header and funnel.
   const rowsHtml = m.rows.map(r => `
-    <div style="border-radius:8px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:3px 8px;display:flex;flex-direction:column;gap:2px;flex:none">
-      <div style="display:flex;align-items:baseline;gap:7px">
-        <span style="font-size:11px;font-weight:800;letter-spacing:0.6px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
-        <span style="flex:1;min-width:0;font-size:9px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:16px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${r.actual.toLocaleString()}</span>
-        <span style="font-size:10px;font-weight:700;color:#6c769b;white-space:nowrap">/ ${r.target.toLocaleString()}</span>
-        <span style="font-size:11px;font-weight:900;color:${r.color};min-width:38px;text-align:right">${r.pctLabel}</span>
+    <div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:7px 10px;display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="font-size:12px;font-weight:800;letter-spacing:0.9px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
+        <span style="flex:1;min-width:0;font-size:10px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${r.actual.toLocaleString()}</span>
+        <span style="font-size:11px;font-weight:700;color:#6c769b">/ ${r.target.toLocaleString()}</span>
+        <span style="font-size:13px;font-weight:900;color:${r.color};min-width:44px;text-align:right">${r.pctLabel}</span>
       </div>
-      <div style="height:3px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
-        <div style="height:3px;border-radius:2px;background:${r.color};width:${r.bar}%"></div>
+      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
+        <div style="height:4px;border-radius:2px;background:${r.color};width:${r.bar}%"></div>
       </div>
     </div>`).join("");
 
   const funnelHtml = m.funnel.map(f => `
-    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:0px">
-      <span style="font-size:9px;font-weight:800;letter-spacing:0.6px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${f.label}</span>
-      <span style="font-family:'Nunito Sans',sans-serif;font-size:15px;font-weight:900;line-height:1.1;color:#c3cae0;font-variant-numeric:tabular-nums">${f.val}</span>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.9px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${f.label}</span>
+      <span style="font-family:'Nunito Sans',sans-serif;font-size:18px;font-weight:900;line-height:1;color:#c3cae0;font-variant-numeric:tabular-nums">${f.val}</span>
     </div>`).join("");
 
-  return `<div style="position:relative;border-radius:14px;padding:8px 11px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 22px ${t.rgb(0.26)}, inset 0 0 46px ${t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:5px;animation:omRise 0.5s ease both">
+  return `<div style="position:relative;border-radius:14px;padding:13px 15px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 22px ${t.rgb(0.26)}, inset 0 0 46px ${t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:9px;animation:omRise 0.5s ease both">
     ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
-    <div style="display:flex;align-items:center;gap:9px;flex:none">
-      <div style="width:34px;height:34px;border-radius:50%;flex:none;border:2px solid ${t.line};background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-family:'Nunito Sans',sans-serif;font-size:14px;font-weight:900;color:${t.ink}">${initials(m.name)}</div>
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:52px;height:52px;border-radius:50%;flex:none;border:2px solid ${t.line};background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-family:'Nunito Sans',sans-serif;font-size:17px;font-weight:900;color:${t.ink}">${initials(m.name)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:16px;font-weight:800;line-height:1.1;color:#f4f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:1px;min-width:0">
-          <span style="font-size:9px;font-weight:700;letter-spacing:0.6px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.role} · TL ${m.tl}</span>
-          <span style="flex:none;padding:1px 7px;border-radius:999px;border:1px solid ${t.ink};font-size:9px;font-weight:900;letter-spacing:0.8px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
-        </div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:800;line-height:1.05;color:#f4f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#7b86ad;text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.role} · TL ${m.tl}</div>
+        <div style="display:inline-flex;margin-top:5px;padding:3px 9px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</div>
       </div>
-      <div class="tv-cnt" data-final="${m.score}" style="text-align:right;flex:none;width:74px;font-family:'Nunito Sans',sans-serif;font-size:27px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:0 0 20px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
+      <div class="tv-cnt" data-final="${m.score}" style="text-align:right;flex:none;width:84px;font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:0 0 20px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;justify-content:center;overflow:hidden">${rowsHtml}</div>
-    <div style="display:flex;align-items:center;gap:8px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.08);flex:none">${funnelHtml}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;justify-content:center">${rowsHtml}</div>
+    <div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">${funnelHtml}</div>
   </div>`;
 }
 
@@ -558,11 +552,11 @@ function bdeMemberCard(m) {
 function bdeTeamBlock(bt) {
   const t = TIER[bt.tier];
   return `<div style="grid-column:span ${bt.span};min-width:0;display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 12px;border-radius:10px;border:1px solid ${t.line};background:rgba(255,255,255,0.035);flex:none">
-      <div style="font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:900;letter-spacing:0.3px;color:${t.ink};white-space:nowrap">${bt.name}</div>
-      <div style="padding:1px 8px;border-radius:999px;border:1px solid ${t.ink};font-size:10px;font-weight:900;letter-spacing:1px;color:${t.ink};white-space:nowrap">${t.label}</div>
-      <div style="flex:1;min-width:0;font-size:10px;font-weight:700;letter-spacing:0.6px;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bt.note}</div>
-      <div class="tv-cnt" data-final="${bt.score}" style="font-family:'Nunito Sans',sans-serif;font-size:24px;font-weight:900;line-height:1;white-space:nowrap;color:${t.ink};font-variant-numeric:tabular-nums">0%</div>
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;border:1px solid ${t.line};background:rgba(255,255,255,0.035)">
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:900;letter-spacing:0.4px;color:${t.ink};white-space:nowrap">${bt.name}</div>
+      <div style="padding:2px 9px;border-radius:999px;border:1px solid ${t.ink};font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};white-space:nowrap">${t.label}</div>
+      <div style="flex:1;min-width:0;font-size:11px;font-weight:700;letter-spacing:0.8px;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bt.note}</div>
+      <div class="tv-cnt" data-final="${bt.score}" style="font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;line-height:1;white-space:nowrap;color:${t.ink};font-variant-numeric:tabular-nums">0%</div>
     </div>
     <div style="flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(${bt.span},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">
       ${bt.members.map(bdeMemberCard).join("")}
@@ -607,7 +601,9 @@ function render() {
   let cardsHtml = "", cols = 5, viewTitle = "", viewSub = "", leaderHtml = "", leaderScoreFinal = 0, totalsHtml = "", tickerText = "";
 
   if (view === 3) {
-    cols = 3;
+    // Auto-arrange: as many columns as the teams need (2+1+1 = 4 today), so
+    // they sit on one row with no empty columns — matching the design.
+    cols = Math.max(1, bdeTeams.reduce((s, t) => s + t.span, 0));
     cardsHtml = bdeTeams.map(bdeTeamBlock).join("");
     viewTitle = "BDE Scorecard";
     viewSub = "Today · weighted lead-generation targets";
