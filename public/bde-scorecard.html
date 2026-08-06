@@ -23,9 +23,10 @@
   .logo-img { height:36px; width:auto; display:block; }
   .logo-sub { font-size:15px; font-weight:400; color:#888; letter-spacing:0.2px; }
   .nav-links { display:flex; gap:8px; flex-wrap:wrap; }
-  .nav-btn { padding:7px 14px; border-radius:8px; font-size:13px; font-weight:700; color:var(--muted);
-    text-decoration:none; border:1px solid var(--border); background:var(--surface); }
-  .nav-btn.active, .nav-btn:hover { color:var(--text); border-color:var(--green); }
+  .nav-btn { padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; color:var(--muted);
+    text-decoration:none; border:1px solid var(--border); background:none; transition:all .2s; }
+  .nav-btn:hover { border-color:#ff4d3a; color:#ff4d3a; }
+  .nav-btn.active { background:#ff4d3a; color:#fff; border-color:#ff4d3a; }
   .container { width:100%; padding:1.5rem; max-width:1500px; margin:0 auto; }
   .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:1rem; align-items:end; }
   .field label { display:block; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
@@ -66,6 +67,14 @@
   .fn-toggle { cursor:pointer; user-select:none; }
   .fn-toggle:hover { color:var(--text); }
   .fn-arrow { display:inline-block; width:10px; }
+  .edit-target-btn { margin:8px 0; background:transparent; border:1px solid #ff4d3a; color:#ff4d3a; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; }
+  .edit-target-btn:hover { background:#ff4d3a; color:#fff; }
+  .edit-panel { margin:8px 0; padding:10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02); }
+  .edit-panel h5 { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+  .edit-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+  .edit-row label { font-size:12px; color:var(--text); }
+  .edit-row input { width:80px; background:#111; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 6px; font-size:12px; }
+  .btn-save-target { margin-top:4px; background:#ff4d3a; border:none; color:#fff; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; }
   .fn-row { display:grid; grid-template-columns:1fr auto auto auto auto; gap:7px; font-size:12px; padding:3px 0; align-items:center; }
   .fn-row.fn-head { color:var(--muted); font-size:9.5px; text-transform:uppercase; letter-spacing:.3px; border-bottom:1px solid var(--border); padding-bottom:4px; }
   .fn-lbl { color:var(--text); }
@@ -82,13 +91,7 @@
     <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" class="logo-img">
     <span class="logo-sub">BDE Scorecard</span>
   </div>
-  <div class="nav-links">
-    <a href="/" class="nav-btn">Dashboard</a>
-    <a href="/bde.html" class="nav-btn">BD Funnel</a>
-    <a href="/bde-scorecard.html" class="nav-btn active">BD Scorecard</a>
-    <a href="/tv-board.html" class="nav-btn">TV Board</a>
-    <a href="/manage-slides.html" class="nav-btn">Manage Slides</a>
-  </div>
+  <div class="nav-links" id="nav-links"></div>
 </header>
 
 <div class="container">
@@ -108,6 +111,31 @@
 </div>
 
 <script>
+// Ported from the live page. Test has no login and no shared /config.js, so
+// the Supabase credentials and the nav are inlined here and the auth gate is
+// gone — matching every other page on test.
+const AUTH_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
+const AUTH_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
+
+function buildNav() {
+  const pages = [
+    { label: "Dashboard", href: "/" },
+    { label: "History", href: "/history.html" },
+    { label: "Combined", href: "/combined.html" },
+    { label: "BDE", href: "/bde.html" },
+    { label: "BD Scorecard", href: "/bde-scorecard.html" },
+    { label: "Funnel", href: "/funnel.html" },
+    { label: "Attendance", href: "/attendance.html" },
+    { label: "TV Board", href: "/tv-board.html" },
+    { label: "Manage Slides", href: "/manage-slides.html" },
+    { label: "Admin Panel", href: "/admin.html" },
+  ];
+  const cur = window.location.pathname;
+  document.getElementById("nav-links").innerHTML = pages.map(p =>
+    `<a href="${p.href}" class="nav-btn${cur === p.href ? " active" : ""}">${p.label}</a>`
+  ).join("");
+}
+
 // ── Team scorecard config ────────────────────────────────────────────────────
 // Each team: members (exact CRM names) + KPIs. Each KPI: how to read the actual
 // value from a BDE record, its daily target, and its weight (weights sum to 1).
@@ -179,12 +207,45 @@ function workingDays(start,end){
   return Math.max(1,n);
 }
 
+// ── Editable monthly targets (team-lead override, persisted in Supabase) ──────
+// Two different real people are both named "Meet Patel" (a Closer under Mamta
+// Das, and the BD Referral member here) — key the BD one distinctly so their
+// stored overrides never collide.
+const PERSON_KEY_OVERRIDES = { "Meet Patel": "Meet Patel (BD)" };
+const pkey = m => PERSON_KEY_OVERRIDES[m] || m;
+
+let TARGET_ROWS = []; // raw rows: { person_key, kpi_label, month, monthly_target }
+let CURRENT_REPORT_MONTH = ""; // YYYY-MM of the report's start date, set by render()
+async function loadTargetOverrides(){
+  try {
+    const r = await fetch(`${AUTH_URL}/rest/v1/kpi_target_overrides?select=person_key,kpi_label,month,monthly_target`, {
+      headers: { apikey: AUTH_ANON, Authorization: `Bearer ${AUTH_ANON}` }
+    });
+    if (!r.ok) return;
+    TARGET_ROWS = await r.json();
+  } catch { TARGET_ROWS = []; }
+}
+// Month-specific value if saved for that exact month, else the old
+// no-month "default" row (pre-existing before per-month targets shipped),
+// else null (caller falls back to the computed daily-rate default).
+function resolveOverride(personKey, kpiLabel, month) {
+  const exact = TARGET_ROWS.find(r => r.person_key === personKey && r.kpi_label === kpiLabel && r.month === month);
+  if (exact) return exact.monthly_target;
+  const fallback = TARGET_ROWS.find(r => r.person_key === personKey && r.kpi_label === kpiLabel && !r.month);
+  return fallback ? fallback.monthly_target : null;
+}
+// Targets are edited on /manage-targets-bd.html — this page only reads and applies them.
+
+const WORKING_DAYS_PER_MONTH = 22; // basis for converting a stored "monthly target" into a daily rate
 function scoreMember(member, kpis, bmap, wDays){
   const b = bmap[member.toLowerCase()] || {};
+  const key = pkey(member);
   let score = 0;
   const rows = kpis.map(k => {
     const actual = k.get(b);
-    const target = Math.round(k.dailyTarget * wDays);
+    const resolved = resolveOverride(key, k.label, CURRENT_REPORT_MONTH);
+    const dailyRate = resolved != null ? resolved / WORKING_DAYS_PER_MONTH : k.dailyTarget;
+    const target = Math.max(1, Math.round(dailyRate * wDays));
     const pct = target>0 ? Math.min(150, actual/target*100) : 0;
     score += pct * k.weight;
     return { label:k.label, note:k.note, actual, target, pct:Math.round(pct), weight:k.weight };
@@ -253,6 +314,7 @@ function tile(member, role, kpis, bmap, wDays){
 }
 
 function render(bdes, start, end){
+  CURRENT_REPORT_MONTH = start.slice(0, 7);
   const wDays = workingDays(start, end);
   const bmap = {};
   bdes.forEach(b => { bmap[(b.name||"").toLowerCase()] = b; });
@@ -282,6 +344,8 @@ async function load(){
   btn.disabled = true; btn.textContent = "Loading...";
   document.getElementById("status").textContent = "Fetching BDE data from Zoho…";
   try {
+    await loadTargetOverrides();
+    // Test has no login, so /api/bde here takes no Authorization header.
     const res = await fetch(`/api/bde?startDate=${start}&endDate=${end}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Server error");
@@ -298,6 +362,8 @@ async function load(){
 }
 document.getElementById("btn-gen").onclick = load;
 
+// Test has no login anywhere, so the board starts immediately.
+buildNav();
 setPreset("month");
 load();
 </script>
