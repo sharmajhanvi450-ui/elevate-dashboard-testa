@@ -441,10 +441,11 @@ function teamOf(name) {
 }
 
 // Card grid geometry. The board is a fixed 1920x1080 canvas, so a bigger roster
-// means shorter cards. Pick the column count that fills the grid without leaving
-// holes, then shrink each card's internals to match the row height — without the
-// shrink, the KPI tiles overflow their row and land on top of the call-breakdown
-// line beneath them, which is what going from 8 builders to 12 did to the board.
+// means shorter cards. Pick the column count that keeps the grid to as few rows
+// as it can without leaving holes, then shrink each card's internals to match
+// the row height — without the shrink, the KPI tiles overflow their row and land
+// on top of the call-breakdown line beneath them, which is what going from 8
+// builders to 12 did to the board.
 function gridFor(n) {
   let cols = 5, best = Infinity;
   for (let c = 3; c <= 5; c++) {
@@ -455,7 +456,10 @@ function gridFor(n) {
     if (score < best) { best = score; cols = c; }
   }
   const rows = Math.ceil(n / cols);
-  return { cols, rows, density: rows <= 2 ? 1 : rows === 3 ? 0.76 : 0.58 };
+  // Largest density each row count can hold without the KPI tiles overflowing.
+  // Measured against the grid's real height on the 1920x1080 canvas.
+  const DENSITY = { 1: 1, 2: 1, 3: 0.85, 4: 0.63, 5: 0.49 };
+  return { cols, rows, density: DENSITY[rows] || 0.45 };
 }
 
 function personCard(p, i, isCloser, s = 1) {
@@ -486,25 +490,27 @@ function personCard(p, i, isCloser, s = 1) {
 
   return `<div style="position:relative;border-radius:14px;padding:${z(14)}px ${z(16)}px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:${p.onLeave?"none":"0 0 26px "+t.rgb(0.3)+", inset 0 0 46px "+t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:${z(10)}px;min-height:0;animation:omRise 0.5s ease both">
     ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
-    <div style="display:flex;align-items:center;gap:${z(11)}px;flex:none;min-width:0">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:${z(5)}px;flex:none;width:${z(58)}px">
-        <div style="width:${z(58)}px;height:${z(58)}px;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
+    <div style="display:flex;align-items:center;gap:${z(10)}px;flex:none;min-width:0">
+      <div style="position:relative;flex:none;width:${z(46)}px;height:${z(46)}px">
+        <div style="width:100%;height:100%;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
           ${avatarBgHtml(p.name)}
-          <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:${z(19)}px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
+          <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:${z(16)}px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <span style="font-family:'Nunito Sans',sans-serif;font-size:${z(19)}px;font-weight:900;line-height:1;color:${i===0&&!p.onLeave?"#0b0a04":t.ink};padding:1px ${z(7)}px;border-radius:6px;background:${i===0&&!p.onLeave?t.ink:"rgba(255,255,255,0.07)"}">${p.onLeave?"—":i+1}</span>
-        </div>
+        <span style="position:absolute;left:${z(-4)}px;bottom:${z(-3)}px;min-width:${z(19)}px;height:${z(19)}px;line-height:${z(17)}px;text-align:center;border-radius:999px;padding:0 ${z(4)}px;box-sizing:border-box;font-family:'Nunito Sans',sans-serif;font-size:${z(12)}px;font-weight:900;color:${i===0&&!p.onLeave?"#0b0a04":t.ink};background:${i===0&&!p.onLeave?t.ink:"#141826"};border:1px solid ${t.line}">${p.onLeave?"—":i+1}</span>
       </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:${z(18)}px;font-weight:800;line-height:1.15;letter-spacing:0px;color:${p.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-        <div style="font-size:${z(12)}px;font-weight:700;letter-spacing:${(1.2*s).toFixed(1)}px;color:#7b86ad;text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.team}</div>
-        <div style="display:inline-flex;align-items:center;margin-top:${z(5)}px;padding:${z(3)}px ${z(9)}px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
-          <span style="font-size:${z(11)}px;font-weight:900;letter-spacing:${(1.3*s).toFixed(1)}px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
-        </div>
+      <!-- Name, team and card label read as one line rather than three stacked
+           rows — it is how the floor says it ("Avni · Soham · Green Card") and
+           the height it gives back goes into the KPI tiles below. -->
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:${z(7)}px;overflow:hidden">
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:${z(18)}px;font-weight:800;line-height:1.1;color:${p.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto">${p.name}</span>
+        ${p.team ? `<span style="flex:none;color:#48507060">•</span>
+        <span style="flex:0 1 auto;font-size:${z(12)}px;font-weight:700;letter-spacing:${(0.8*s).toFixed(1)}px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.team}</span>` : ""}
+        <span style="flex:none;display:inline-flex;align-items:center;padding:${z(2)}px ${z(8)}px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
+          <span style="font-size:${z(10)}px;font-weight:900;letter-spacing:${(1*s).toFixed(1)}px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
+        </span>
       </div>
-      <div style="text-align:right;flex:none;width:${z(92)}px">
-        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:${z(34)}px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
+      <div style="text-align:right;flex:none;width:${z(84)}px">
+        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:${z(32)}px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(${isCloser?2:3},minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:${z(7)}px;flex:1;min-height:0">${kpisHtml}</div>
