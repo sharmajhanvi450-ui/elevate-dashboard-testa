@@ -161,10 +161,14 @@ const TEAMS = [
     name: "Referral Team",
     role: "Referral BDE",
     members: ["Meet Patel"],
+    // This team is scored on Reference separately, so its ICP rows read
+    // `typesExRef` — the same tallies with referral-sourced leads removed.
+    // Using `types` here counted one referral lead twice: once as ICP Moderate
+    // and again under Reference.
     kpis: [
-      { label: "ICP Moderate", note: "Leads Generated",         get: b => (b.types||{})["ICP Moderate"]||0,  dailyTarget: 2,  weight: 0.30 },
-      { label: "ICP Cold",     note: "Leads Generated",         get: b => (b.types||{})["ICP Cold"]||0,      dailyTarget: 10, weight: 0.20 },
-      { label: "Reference",    note: "Lead Source = Reference", get: b => (b.sourceGroups||{}).Reference||0, dailyTarget: 1,  weight: 0.50 },
+      { label: "ICP Moderate", note: "Leads Generated (excl. Reference)", get: b => (b.typesExRef||{})["ICP Moderate"]||0, dailyTarget: 2,  weight: 0.30 },
+      { label: "ICP Cold",     note: "Leads Generated (excl. Reference)", get: b => (b.typesExRef||{})["ICP Cold"]||0,     dailyTarget: 10, weight: 0.20 },
+      { label: "Reference",    note: "Lead Source = Reference",           get: b => (b.sourceGroups||{}).Reference||0,    dailyTarget: 1,  weight: 0.50 },
     ],
   },
 ];

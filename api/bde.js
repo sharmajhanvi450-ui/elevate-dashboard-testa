@@ -122,7 +122,9 @@ export default async function handler(req, res) {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: "Missing startDate or endDate" });
 
-  const cacheKey = `bde|${startDate}|${endDate}`;
+  // v2: the payload gained `typesExRef`. Bumping the key retires v1 rows rather
+  // than letting a page fall back to the double-counted numbers for 20 minutes.
+  const cacheKey = `bde|v2|${startDate}|${endDate}`;
   const t0 = Date.now();
 
   try {
@@ -203,6 +205,12 @@ export default async function handler(req, res) {
         cur: emptyFunnel(), old: emptyFunnel(),   // funnel split by lead-generation cohort
         sources: {}, sourceGroups: { LinkedIn: 0, Portal: 0, Recruiter: 0, Reference: 0, Other: 0 },
         types: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
+        // Same counts as `types`, but skipping anything whose source is
+        // Reference. `types` and `sourceGroups` are tallied independently, so a
+        // referral lead typed "ICP Moderate" lands in both — which on the
+        // Referral Team scorecard scored the one lead twice, under ICP Moderate
+        // and again under Reference. That card reads its ICP counts from here.
+        typesExRef: { "ICP Cold": 0, "ICP Hot": 0, "ICP Moderate": 0, "ICP Parser": 0, "Unknown": 0 },
         linkedInICP: 0
       };
     }
@@ -220,22 +228,18 @@ export default async function handler(req, res) {
 
     function isICP(typ) { return typ.startsWith("ICP "); }
 
-    [...genLeads, ...genContacts].forEach(r => {
+    function tallyGenerated(r) {
       const b = getBDE(r); ensure(b); incStage(b,"generated",r);
       const src = getRawSource(r); const typ = normalizeType(getRawType(r));
+      const grp = normalizeSource(src);
       incSub(b,"sources", src||"Unknown");
-      incSub(b,"sourceGroups", normalizeSource(src));
+      incSub(b,"sourceGroups", grp);
       incSub(b,"types", typ);
-      if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
-    });
-    genDeals.forEach(r => {
-      const b = getBDE(r); ensure(b); incStage(b,"generated",r);
-      const src = getRawSource(r); const typ = normalizeType(getRawType(r));
-      incSub(b,"sources", src||"Unknown");
-      incSub(b,"sourceGroups", normalizeSource(src));
-      incSub(b,"types", typ);
-      if (b && map[key(b)] && normalizeSource(src) === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
-    });
+      if (grp !== "Reference") incSub(b,"typesExRef", typ);
+      if (b && map[key(b)] && grp === "LinkedIn" && isICP(typ)) map[key(b)].linkedInICP++;
+    }
+    [...genLeads, ...genContacts].forEach(tallyGenerated);
+    genDeals.forEach(tallyGenerated);
     [...touchedLeads,...touchedContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"touched",r); });
     touchedDeals.forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"touched",r); });
     [...connLeads,...connContacts].forEach(r => { const b=getBDE(r); ensure(b); incStage(b,"connected",r); });
