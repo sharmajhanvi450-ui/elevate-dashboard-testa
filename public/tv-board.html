@@ -525,8 +525,38 @@ function personCard(p, i, isCloser, s = 1) {
   </div>`;
 }
 
+// Today's team roll-up behind the three figures on the Team Leader card.
+// Deliberately the same shape as the History page's teamTotals(): revenue,
+// admissions and presentations held are all closer-side. A builder row also
+// carries a deal count for the deals they sourced, but never the money or the
+// presentation behind them, so counting those would report the same enrolment
+// twice against a revenue figure that never included it.
+function teamRollup(members) {
+  const t = { revenue: 0, newUpfront: 0, futureUpfront: 0, admissions: 0, presHeld: 0 };
+  members.forEach(m => {
+    if (m.role !== "Closer") return;
+    t.newUpfront    += m.newUpfront || 0;
+    t.futureUpfront += m.futureUpfront || 0;
+    t.admissions    += m.dealsClosed || 0;
+    t.presHeld      += m.presentations || 0;
+  });
+  t.revenue   = t.newUpfront + t.futureUpfront;
+  t.avgTicket = t.admissions ? t.revenue / t.admissions : 0;
+  t.convPct   = t.presHeld ? Math.round(t.admissions / t.presHeld * 100) : 0;
+  t.convColor = !t.presHeld ? "#6c769b" : t.convPct >= 50 ? "#00e676" : t.convPct >= 25 ? "#ffd740" : "#ff4d6a";
+  return t;
+}
+
 function teamCard(team, members) {
   const active = members.filter(m => !m.onLeave);
+  const roll = teamRollup(members);
+  const money = n => "$" + Math.round(n).toLocaleString();
+  const statTile = (label, value, sub, color) => `
+    <div style="flex:1;min-width:0;border-radius:11px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);padding:11px 14px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden">${label}</div>
+      <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;line-height:1.1;margin-top:3px;color:${color};font-variant-numeric:tabular-nums;white-space:nowrap">${value}</div>
+      <div style="font-size:11px;font-weight:700;color:#6c769b;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+    </div>`;
   // On-leave members count as 0 toward the team average (their score is
   // already 0 from loadData), so health reflects the whole roster.
   const health = members.length ? Math.round(members.reduce((s,m) => s + m.score, 0) / members.length) : 0;
@@ -564,6 +594,11 @@ function teamCard(team, members) {
         <div class="tv-cnt" data-final="${health}" style="font-family:'Nunito Sans',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#7b86ad;margin-top:4px">${active.length} ACTIVE · ${members.length-active.length} ON LEAVE</div>
       </div>
+    </div>
+    <div style="display:flex;gap:10px;padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.09);flex:none">
+      ${statTile("Avg Ticket Size", roll.admissions ? money(roll.avgTicket) : "—", money(roll.revenue) + " revenue", "#40c4ff")}
+      ${statTile("Admissions", roll.admissions, money(roll.newUpfront) + " new · " + money(roll.futureUpfront) + " future", "#00e676")}
+      ${statTile("Pres → Enrolment", roll.presHeld ? roll.convPct + "%" : "—", roll.admissions + " of " + roll.presHeld + " held", roll.convColor)}
     </div>
     <div style="flex:1;min-height:0;display:flex;flex-direction:column">${membersHtml}</div>
   </div>`;
