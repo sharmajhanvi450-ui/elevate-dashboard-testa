@@ -275,6 +275,10 @@ function etParts() {
 // once building estNow() and again in fmtDate — shifting the result 9.5h back
 // and making the board request YESTERDAY's data between midnight and ~10am ET.
 function todayET() { const p = etParts(); return `${p.year}-${p.month}-${p.day}`; }
+// The Team Leader card reports revenue, admissions and conversion for the month
+// so far. On today's numbers alone those three read 0 / 0 / 0% for most of the
+// day, which tells nobody anything.
+function monthStartET() { const p = etParts(); return `${p.year}-${p.month}-01`; }
 // Eastern wall-clock hour as a decimal (e.g. 14.5 for 2:30pm).
 function etHour() { const p = etParts(); return Number(p.hour) + Number(p.minute) / 60; }
 function dayFraction(dateStr, isCustomRange) {
@@ -330,6 +334,11 @@ let STATE = {
   builders: [],
   closers: [],
   bdeTeams: [],
+  // Month-to-date closers, keyed by name, behind the Team Leader card's money
+  // figures. Empty until the first load, and left empty if that fetch fails —
+  // teamRollup() then falls back to the daily numbers.
+  mtdByName: {},
+  mtdRange: null,
   leaveMap: {},
   isLive: true,
   rangeStart: null,
@@ -399,12 +408,28 @@ async function loadData() {
   const startDate = STATE.isLive ? today : STATE.rangeStart;
   const endDate = STATE.isLive ? today : STATE.rangeEnd;
   try {
-    const [leaveMap, builderData, closerData, bdes] = await Promise.all([
+    // Month-to-date closers feed only the Team Leader card's three money
+    // figures; everything else on the board stays on the selected range. It is
+    // its own cache key, so this costs one Zoho call per 20 minutes, not one
+    // per refresh. A failure here leaves those tiles on the daily numbers
+    // rather than taking the board down.
+    const mtdStart = STATE.isLive ? monthStartET() : startDate;
+    const [leaveMap, builderData, closerData, bdes, mtdCloserData] = await Promise.all([
       fetchLeaveMap(startDate, endDate),
       fetchRole("Builder", startDate, endDate),
       fetchRole("Closer", startDate, endDate),
       fetchBde(startDate, endDate),
+      mtdStart === startDate
+        ? Promise.resolve(null)
+        : fetchRole("Closer", mtdStart, endDate).catch(e => {
+            console.error("TV board: month-to-date closers failed (non-fatal):", e.message);
+            return null;
+          }),
     ]);
+
+    STATE.mtdRange = mtdCloserData ? { start: mtdStart, end: endDate } : null;
+    STATE.mtdByName = {};
+    (mtdCloserData?.closers || []).forEach(c => { STATE.mtdByName[c.name] = c; });
     const frac = dayFraction(endDate, !STATE.isLive);
     const T = Object.fromEntries(Object.entries(B_T).map(([k,v]) => [k, Math.max(1, Math.round(v * frac))]));
     const TC = Object.fromEntries(Object.entries(C_T).map(([k,v]) => [k, Math.max(1, Math.round(v * frac))]));
@@ -531,14 +556,18 @@ function personCard(p, i, isCloser, s = 1) {
 // carries a deal count for the deals they sourced, but never the money or the
 // presentation behind them, so counting those would report the same enrolment
 // twice against a revenue figure that never included it.
-function teamRollup(members) {
+// `mtd` maps a closer's name to their month-to-date record; when it is missing
+// (or a name isn't in it) the member's own figures are used, so this still
+// works on a fixed range and stays comparable with history.html's teamTotals().
+function teamRollup(members, mtd) {
   const t = { revenue: 0, newUpfront: 0, futureUpfront: 0, admissions: 0, presHeld: 0 };
   members.forEach(m => {
     if (m.role !== "Closer") return;
-    t.newUpfront    += m.newUpfront || 0;
-    t.futureUpfront += m.futureUpfront || 0;
-    t.admissions    += m.dealsClosed || 0;
-    t.presHeld      += m.presentations || 0;
+    const src = (mtd && mtd[m.name]) || m;
+    t.newUpfront    += src.newUpfront || 0;
+    t.futureUpfront += src.futureUpfront || 0;
+    t.admissions    += src.dealsClosed || 0;
+    t.presHeld      += src.presentations || 0;
   });
   t.revenue   = t.newUpfront + t.futureUpfront;
   t.avgTicket = t.admissions ? t.revenue / t.admissions : 0;
@@ -549,8 +578,16 @@ function teamRollup(members) {
 
 function teamCard(team, members) {
   const active = members.filter(m => !m.onLeave);
-  const roll = teamRollup(members);
+  const roll = teamRollup(members, STATE.mtdByName);
   const money = n => "$" + Math.round(n).toLocaleString();
+  // Say the period out loud — these three cover the month so far while the
+  // health score and the member list beside them are today's.
+  const periodLabel = (() => {
+    const r = STATE.mtdRange;
+    if (!r) return "Selected range";
+    const d = s => new Date(s + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", day: "numeric", month: "short" }).toUpperCase();
+    return `Month to date · ${d(r.start)} – ${d(r.end)}`;
+  })();
   const statTile = (label, value, sub, color) => `
     <div style="flex:1;min-width:0;border-radius:11px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);padding:11px 14px">
       <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden">${label}</div>
@@ -595,10 +632,13 @@ function teamCard(team, members) {
         <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#7b86ad;margin-top:4px">${active.length} ACTIVE · ${members.length-active.length} ON LEAVE</div>
       </div>
     </div>
-    <div style="display:flex;gap:10px;padding:14px 24px;border-bottom:1px solid rgba(255,255,255,0.09);flex:none">
-      ${statTile("Avg Ticket Size", roll.admissions ? money(roll.avgTicket) : "—", money(roll.revenue) + " revenue", "#40c4ff")}
-      ${statTile("Admissions", roll.admissions, money(roll.newUpfront) + " new · " + money(roll.futureUpfront) + " future", "#00e676")}
-      ${statTile("Pres → Enrolment", roll.presHeld ? roll.convPct + "%" : "—", roll.admissions + " of " + roll.presHeld + " held", roll.convColor)}
+    <div style="padding:12px 24px 14px;border-bottom:1px solid rgba(255,255,255,0.09);flex:none">
+      <div style="font-size:11px;font-weight:800;letter-spacing:2px;color:#5c6488;text-transform:uppercase;margin-bottom:9px">${periodLabel}</div>
+      <div style="display:flex;gap:10px">
+        ${statTile("Avg Ticket Size", roll.admissions ? money(roll.avgTicket) : "—", money(roll.revenue) + " revenue", "#40c4ff")}
+        ${statTile("Admissions", roll.admissions, money(roll.newUpfront) + " new · " + money(roll.futureUpfront) + " future", "#00e676")}
+        ${statTile("Pres → Enrolment", roll.presHeld ? roll.convPct + "%" : "—", roll.admissions + " of " + roll.presHeld + " held", roll.convColor)}
+      </div>
     </div>
     <div style="flex:1;min-height:0;display:flex;flex-direction:column">${membersHtml}</div>
   </div>`;
