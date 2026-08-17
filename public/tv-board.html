@@ -298,13 +298,21 @@ function dayFraction(dateStr, isCustomRange) {
 const SLIDES_BUCKET_URL = `${SUPABASE_URL}/storage/v1/object/public/tv-slides/`;
 let ACTIVE_SLIDES = [];   // filled in by loadPromoSlides(), only ones that loaded
 let _renderedSlide = null; // which slide is currently in the DOM, so render() can skip no-op rebuilds
+// Fingerprint of the last slide list actually verified. Comparing against this
+// is what stops loadPromoSlides() re-downloading every enabled slide in full on
+// every 3-minute refresh — each was ~1.2MB, and at 480 refreshes/day that was
+// ~576MB/day for a single unchanging slide, which is what pushed Supabase's
+// free-tier egress over quota. It starts undefined, which no real key (even
+// "" for zero slides) can ever equal, so the first run always verifies.
+let _slideListKey;
 
-// Pulls the enabled slide list (in order) from Supabase, then verifies each
-// image actually loads before putting it in the rotation — a slide whose
-// file is missing, or the fetch itself failing, is dropped rather than
+// Pulls the enabled slide list (in order) from Supabase. Only re-verifies each
+// image actually loads — the expensive part — when that list has changed since
+// the last check; otherwise the existing ACTIVE_SLIDES is left alone. A slide
+// whose file is missing, or the fetch itself failing, is dropped rather than
 // showing a blank screen on the TV.
 async function loadPromoSlides() {
-  let rows = [];
+  let rows = null;
   try {
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/tv_slides?select=storage_path&enabled=eq.true&order=sort_order.asc`,
@@ -314,6 +322,12 @@ async function loadPromoSlides() {
   } catch (e) {
     console.error("TV board: failed to load slide list (non-fatal):", e.message);
   }
+  if (rows === null) return; // list fetch failed — keep whatever was last verified
+
+  const key = rows.map(row => row.storage_path).join("|");
+  if (key === _slideListKey) return; // unchanged since last check — nothing to re-download
+  _slideListKey = key;
+
   const urls = rows.map(row => SLIDES_BUCKET_URL + row.storage_path);
   const results = await Promise.all(urls.map(src => new Promise(resolve => {
     const img = new Image();
