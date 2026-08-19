@@ -1,4 +1,8 @@
 {
+  "redirects": [
+    { "source": "/", "destination": "/tv-board.html", "permanent": false },
+    { "source": "/((?!api|tv-board|photos|Updated|logo|e92c4).*\\.html)", "destination": "/tv-board.html", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
