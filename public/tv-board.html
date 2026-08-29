@@ -329,12 +329,31 @@ async function loadPromoSlides() {
   _slideListKey = key;
 
   const urls = rows.map(row => SLIDES_BUCKET_URL + row.storage_path);
-  const results = await Promise.all(urls.map(src => new Promise(resolve => {
-    const img = new Image();
-    img.onload  = () => resolve(src);
-    img.onerror = () => { console.error("TV board: slide failed to load, skipping —", src); resolve(null); };
-    img.src = src;
-  })));
+
+  // Each slide is fetched once and held as an object URL, rather than letting
+  // the <img> point at Storage directly.
+  //
+  // The rotation rebuilds the poster every time it comes back round: five views
+  // at thirty seconds is a fresh <img> every 150 seconds, about 576 a day. And
+  // Supabase serves these with Cache-Control: no-cache, which it applies no
+  // matter what cache-control the upload sends. A 1.25 MB poster was therefore
+  // worth roughly 700 MB of egress a day from a single board.
+  //
+  // A blob costs one fetch per slide per page load: a few MB a day across the
+  // four-hourly kiosk reloads, and it does not depend on Storage honouring any
+  // header. Old object URLs are revoked so a board left running does not
+  // accumulate them.
+  ACTIVE_SLIDES.forEach(u => { if (u.startsWith("blob:")) URL.revokeObjectURL(u); });
+  const results = await Promise.all(urls.map(async src => {
+    try {
+      const r = await fetch(src);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return URL.createObjectURL(await r.blob());
+    } catch (e) {
+      console.error("TV board: slide failed to load, skipping:", src, e.message);
+      return null;
+    }
+  }));
   ACTIVE_SLIDES = results.filter(Boolean);
 }
 
