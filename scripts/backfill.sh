@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Backfill historical daily_kpi rows, one day per request (weekends auto-skipped
-# server-side). Runs each day sequentially to stay within the Hobby 60s limit.
+# Backfill historical daily_kpi rows, one day per request. Runs each day
+# sequentially to stay within the Hobby 60s limit.
+#
+# Weekends are included: a Saturday is stored only for people who actually
+# worked it, so a weekend day nobody worked comes back as upserted:0.
 #
 # Usage:
 #   BASE_URL="https://<your-test-deployment>.vercel.app" \

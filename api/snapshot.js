@@ -11,10 +11,27 @@
 // Query params:
 //   ?date=YYYY-MM-DD          snapshot a single specific day
 //   ?start=..&end=..          backfill an inclusive range (keep small on Hobby)
-//   (none)                    snapshot yesterday (EST)
-//   ?force=1                  also snapshot weekends (normally skipped)
+//   (none)                    re-read the trailing RESNAPSHOT_DAYS days:
+//                             yesterday, then the rest oldest-first
+//   ?days=N                   override the trailing window for one call
+//
+// Weekends are snapshotted too, but only for people who actually worked: deals
+// do close on a Saturday, and a day of zero rows for everyone else would be read
+// as a working day by anything counting rows.
 
 export const config = { maxDuration: 60 };
+
+// How far back a nightly run re-reads. Zoho entries get back-dated all the time
+// — an upfront date corrected after the fact, a deal keyed in days later — and a
+// snapshot taken once at 00:30 and never revisited keeps the stale figure for
+// ever. August lost two closer deals exactly that way. Upserts are idempotent,
+// so re-reading a settled day costs time, not correctness.
+const RESNAPSHOT_DAYS = 7;
+
+// Vercel kills the function at maxDuration and the whole response is lost with
+// it, so stop starting new days near the ceiling. The window slides every night,
+// so a day left undone here is picked up by the next run.
+const TIME_BUDGET_MS = 45000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY; // server-only, RLS bypass
@@ -192,6 +209,17 @@ async function upsertRows(rows){
 }
 
 // ── Snapshot one day ────────────────────────────────────────────────────────
+const isWeekendDate = date => {
+  const dow = new Date(date + "T12:00:00Z").getUTCDay();   // 0 Sun, 6 Sat
+  return dow === 0 || dow === 6;
+};
+
+// Anything at all worth recording — used to pick which weekend rows to keep.
+const hasActivity = r =>
+  r.calls || r.minutes || r.leads || r.discoveries || r.pres_booked ||
+  r.pres_completed || r.presentations || r.deals_closed ||
+  r.new_upfront || r.future_upfront;
+
 async function snapshotDay(date){
   const token = await getToken();
 
@@ -275,7 +303,14 @@ async function snapshotDay(date){
     });
   });
 
-  const { count } = await upsertRows(rows);
+  // On a weekend, keep only the people who actually worked. A full set of zero
+  // rows would otherwise land in daily_kpi, and anything that measures a period
+  // by the rows it finds would read Saturday as a working day — which is exactly
+  // how the History page derives its targets.
+  const keep = isWeekendDate(date) ? rows.filter(hasActivity) : rows;
+  if (!keep.length) return { date, weekend:true, upserted:0, note:"nobody worked" };
+
+  const { count } = await upsertRows(keep);
   return { date, builders:Object.keys(builderMap).length, closers:Object.keys(closerMap).length, upserted:count };
 }
 
@@ -296,8 +331,6 @@ export default async function handler(req, res){
     return res.status(500).json({ error:"Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env" });
   }
 
-  const force = req.query.force === "1";
-
   // Build the list of dates to snapshot
   let dates = [];
   if (req.query.date){
@@ -306,16 +339,28 @@ export default async function handler(req, res){
     let d = req.query.start;
     while (d <= req.query.end){ dates.push(d); d = shiftDate(d, 1); }
   } else {
+    // Nightly run: yesterday first — it is the day everyone looks at, and a run
+    // that gets cut short must never miss it. Then the REST OLDEST FIRST.
+    //
+    // The order matters. Walking newest-to-oldest would mean a run that only has
+    // time for three days re-reads the same three every night, and a correction
+    // back-dated to last Tuesday is never picked up. Oldest-first, with the
+    // window sliding one day each night, every date passes through the far end
+    // exactly once — so each day is read when it is new and read again a week
+    // later, whatever the time budget allows in between.
     const estToday = new Date().toLocaleDateString("en-CA", { timeZone:"America/New_York" });
-    dates = [ shiftDate(estToday, -1) ]; // yesterday (EST)
+    const span = Math.max(1, Math.min(31, parseInt(req.query.days, 10) || RESNAPSHOT_DAYS));
+    dates.push(shiftDate(estToday, -1));
+    for (let i = span; i >= 2; i--) dates.push(shiftDate(estToday, -i));
   }
 
+  const startedAt = Date.now();
   const results = [];
   try {
     for (const date of dates){
-      const dow = new Date(date + "T12:00:00Z").getUTCDay(); // 0 Sun, 6 Sat
-      if ((dow === 0 || dow === 6) && !force){
-        results.push({ date, skipped:"weekend" });
+      // Never abandon the first day — without it a run does nothing at all.
+      if (results.length && Date.now() - startedAt > TIME_BUDGET_MS){
+        results.push({ date, skipped:"out of time, next run will re-read it" });
         continue;
       }
       results.push(await snapshotDay(date));
