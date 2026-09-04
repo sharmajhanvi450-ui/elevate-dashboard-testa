@@ -78,22 +78,35 @@ const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
 
 // Sales roster (inlined — test has no shared config.js).
+// Fallback only — teamOf() below prefers the teamLead the report derives from
+// each person's Zoho role. This list is here for the rare person whose role
+// carries no lead, and it had gone badly stale: it still listed Dhruvil Chauhan
+// and Soumya Singh, both of whom left, and was missing eight people who joined
+// since. Verified against the live report on 4 Sep 2026.
 const SALES_TEAM_MEMBERS = [
   { name: "Yashraj Modasara",  team: "Soham",     role: "Builder" },
-  { name: "Aryan Sharma",      team: "Soham",     role: "Builder" },
-  { name: "Dhruvil Chauhan",   team: "Soham",     role: "Builder" },
   { name: "Avni Gajjar",       team: "Soham",     role: "Builder" },
   { name: "Maharshi Patel",    team: "Soham",     role: "Builder" },
+  { name: "Kavya Prajapati",   team: "Soham",     role: "Builder" },
+  { name: "Umair Mansuri",     team: "Soham",     role: "Builder" },
+  { name: "Aryan Sharma",      team: "Soham",     role: "Closer"  },
   { name: "Harsh Bhojak",      team: "Soham",     role: "Closer"  },
   { name: "Nikunj Patel",      team: "Soham",     role: "Closer"  },
   { name: "Lekhraj Prajapati", team: "Tejasvi",   role: "Builder" },
   { name: "Nupur Vyas",        team: "Tejasvi",   role: "Builder" },
-  { name: "Yash Mishra",       team: "Tejasvi",   role: "Closer"  },
+  { name: "Hemant Rathore",    team: "Tejasvi",   role: "Builder" },
+  { name: "Jatin Bhavsar",     team: "Tejasvi",   role: "Builder" },
+  { name: "Aditya Pipaliya",   team: "Tejasvi",   role: "Builder" },
+  { name: "Varsha Mahto",      team: "Tejasvi",   role: "Builder" },
+  { name: "Mr Aadil Thim",     team: "Tejasvi",   role: "Builder" },
+  { name: "Sarim Mohammed",    team: "Tejasvi",   role: "Builder" },
   { name: "Kartik Deshawar",   team: "Tejasvi",   role: "Closer"  },
   { name: "Abhijeet Das",      team: "Tejasvi",   role: "Closer"  },
   { name: "Shivam Rathi",      team: "Mamta Das", role: "Builder" },
-  { name: "Soumya Singh",      team: "Mamta Das", role: "Builder" },
   { name: "Nishant Sharma",    team: "Mamta Das", role: "Builder" },
+  { name: "Talha Shaikh",      team: "Mamta Das", role: "Builder" },
+  { name: "Yash Parikh",       team: "Mamta Das", role: "Builder" },
+  { name: "Dev Sompura",       team: "Mamta Das", role: "Builder" },
   { name: "Pranali Mishra",    team: "Mamta Das", role: "Closer"  },
   { name: "Meet Patel",        team: "Mamta Das", role: "Closer"  },
   { name: "Vidhi Patel",       team: "Mamta Das", role: "Closer"  },
@@ -470,13 +483,13 @@ async function loadData() {
     STATE.builders = (builderData.builders || []).map(b => {
       const onLeave = (leaveMap[b.name] || 0) >= frac;
       const s = onLeave ? 0 : scoreBuilder(b, T);
-      return { ...b, score: s, tier: onLeave ? "leave" : zone(s), role: "Builder", onLeave, team: teamOf(b.name) };
+      return { ...b, score: s, tier: onLeave ? "leave" : zone(s), role: "Builder", onLeave, team: teamOf(b) };
     }).sort((a,b) => (a.onLeave?1:0) - (b.onLeave?1:0) || b.score - a.score);
 
     STATE.closers = (closerData.closers || []).map(c => {
       const onLeave = (leaveMap[c.name] || 0) >= frac;
       const s = onLeave ? 0 : scoreCloser(c, TC);
-      return { ...c, score: s, tier: onLeave ? "leave" : zoneCloser(c, s), role: "Closer", onLeave, team: teamOf(c.name) };
+      return { ...c, score: s, tier: onLeave ? "leave" : zoneCloser(c, s), role: "Closer", onLeave, team: teamOf(c) };
     }).sort((a,b) => (a.onLeave?1:0) - (b.onLeave?1:0) || b.score - a.score);
 
     // BDE targets are daily rates, so scale them by the same day fraction the
@@ -493,8 +506,12 @@ async function loadData() {
   render();
 }
 
-function teamOf(name) {
-  const m = SALES_TEAM_MEMBERS.find(x => x.name === name);
+// The person's own teamLead, which api/report.js now derives from their Zoho
+// role. It used to be filled from the Team_Lead field on whichever record was
+// read first, which left eight people blank and put two on the wrong card.
+function teamOf(person) {
+  if (person && person.teamLead) return person.teamLead;
+  const m = SALES_TEAM_MEMBERS.find(x => x.name === (person && person.name));
   return m ? m.team : "—";
 }
 
@@ -790,7 +807,15 @@ function render() {
       + "   ·   ENROLLED " + sumStage("Enrolled").toLocaleString() + "   ·   ";
   } else if (view === 2) {
     const all = [...builders, ...closers];
-    const teamNames = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
+    // Teams come from the people actually in the report, so a transfer or a new
+    // lead shows up without a code edit. Config order first, so the board's
+    // familiar left-to-right layout does not shuffle.
+    const configOrder = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
+    const present = new Set(all.map(m => m.team).filter(n => n && n !== "—"));
+    const teamNames = [
+      ...configOrder.filter(n => present.has(n)),
+      ...[...present].filter(n => !configOrder.includes(n)).sort(),
+    ];
     const teams = teamNames.map(name => {
       const members = all.filter(m => m.team === name);
       // On-leave members count as 0 toward the average, so health reflects

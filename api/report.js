@@ -268,15 +268,24 @@ export default async function handler(req, res) {
     const isCloser   = role.toLowerCase().includes("closer");
     const isTeamLead = role.toLowerCase().includes("team leader");
 
+    // A person's team lead comes from their Zoho ROLE, not from the Team_Lead
+    // field on whichever record happened to be read first. That field is set per
+    // record, so the Builder and Closer reports were picking up blanks for
+    // anyone with no qualifying record in the period, full names like
+    // "Soham Bajpai" where the rest of the app uses "Soham", and occasionally a
+    // different lead altogether — Kavya Prajapati and Nikunj Patel were both
+    // reported under Mamta Das when their role says Soham. The TV board groups
+    // by this, so those people sat on the wrong card.
+    function getTLName(roleName) {
+      if (!roleName) return null;
+      if (roleName.includes("Soham"))   return "Soham";
+      if (roleName.includes("Tejasvi")) return "Tejasvi";
+      if (roleName.includes("Mamta"))   return "Mamta Das";
+      return null;
+    }
+
     // ── TEAM LEADER REPORT ───────────────────────────────────────────────────
     if (isTeamLead) {
-      function getTLName(roleName) {
-        if (roleName.includes("Soham"))   return "Soham";
-        if (roleName.includes("Tejasvi")) return "Tejasvi";
-        if (roleName.includes("Mamta"))   return "Mamta Das";
-        return null;
-      }
-
       const tlMembers = allUsers.filter(u => {
         const r = u.role?.name || "";
         return getTLName(r) && (r.includes("Builder") || r.includes("Closer"));
@@ -353,7 +362,7 @@ export default async function handler(req, res) {
     if (isCloser) {
       const map = {};
       users.forEach(u => {
-        map[u.id] = { name: u.full_name, id: u.id, teamLead: "",
+        map[u.id] = { name: u.full_name, id: u.id, teamLead: getTLName(u.role?.name) || "",
           calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0,
           presentations: 0, dealsClosed: 0, newUpfront: 0, futureUpfront: 0 };
       });
@@ -379,14 +388,12 @@ export default async function handler(req, res) {
         const id = d.Owner?.id;
         if (!map[id]) return;
         map[id].presentations += 1;
-        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
       });
 
       closedDeals.forEach(d => {
         const id = d.Owner?.id;
         if (!map[id]) return;
         map[id].futureUpfront += parseFloat(d.Future_Booked_Upfront || 0);
-        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
       });
 
       upfrontDeals.forEach(d => {
@@ -394,7 +401,6 @@ export default async function handler(req, res) {
         if (!map[id]) return;
         map[id].dealsClosed += 1;
         map[id].newUpfront += parseFloat(d.Upfront_Amount || 0);
-        if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead;
       });
 
       const closers = Object.values(map).map(b => ({
@@ -413,7 +419,7 @@ export default async function handler(req, res) {
     // ── BUILDER REPORT ───────────────────────────────────────────────────────
     const map = {};
     users.forEach(u => {
-      map[u.id] = { name: u.full_name, id: u.id, teamLead: "",
+      map[u.id] = { name: u.full_name, id: u.id, teamLead: getTLName(u.role?.name) || "",
         calls: 0, inbound: 0, outbound: 0, missed: 0, minutes: 0,
         leads: 0, discoveries: 0, presBooked: 0, presCompleted: 0, dealsClosed: 0 };
     });
@@ -439,12 +445,12 @@ export default async function handler(req, res) {
       map[id].outbound += 1;
     });
 
-    leadsQL.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].leads += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; });
-    leadsDisc.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && l.Team_Lead) map[id].teamLead = l.Team_Lead; });
-    dealsQL.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].leads += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
-    dealsDisc.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].discoveries += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
-    dealsPB.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presBooked += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
-    dealsPC.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; if (!map[id].teamLead && d.Team_Lead) map[id].teamLead = d.Team_Lead; });
+    leadsQL.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].leads += 1; });
+    leadsDisc.forEach(l => { const id = l.Owner?.id; if (!map[id]) return; map[id].discoveries += 1; });
+    dealsQL.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].leads += 1; });
+    dealsDisc.forEach(d => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].discoveries += 1; });
+    dealsPB.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presBooked += 1; });
+    dealsPC.forEach(d           => { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].presCompleted += 1; });
     builderClosedDeals.forEach(d=> { const id = d.Builder?.id; if (!id || !map[id]) return; map[id].dealsClosed += 1; });
 
     const builders = Object.values(map).map(b => ({ ...b, minutes: Math.round(b.minutes) }));
