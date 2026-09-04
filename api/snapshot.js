@@ -96,8 +96,39 @@ async function getToken(){
   _tok = { token:d.access_token, exp:Date.now() + 50*60*1000 };
   return d.access_token;
 }
+// ── Zoho transport ──────────────────────────────────────────────────────────
+// A limiter and a retry, matching api/_lib/report-core.js in the live repo.
+// Without them a 429 or a 5xx came back as an empty page and the day was
+// silently written short — and the adaptive call splitting below fans out far
+// more requests than the old two-window read did, so the cap matters more now.
+const COQL_OFFSET_CEILING = 2000;
+
+function makeLimiter(max){
+  let active = 0; const q = [];
+  const pump = () => { while (active < max && q.length) { active++; (q.shift())(); } };
+  return fn => new Promise((resolve, reject) => {
+    q.push(() => fn().then(resolve, reject).finally(() => { active--; pump(); }));
+    pump();
+  });
+}
+const _limit = makeLimiter(8);
+
+async function zohoFetch(url, opts){
+  return _limit(async () => {
+    for (let attempt = 0; ; attempt++){
+      const r = await fetch(url, opts);
+      if ((r.status === 429 || r.status >= 500) && attempt < 6){
+        await new Promise(res => setTimeout(res,
+          Math.min(800 * 2 ** attempt, 12000) + Math.floor(Math.random() * 300)));
+        continue;
+      }
+      return r;
+    }
+  });
+}
+
 async function zohoGet(token, url){
-  const r = await fetch(url, { headers:{ Authorization:`Zoho-oauthtoken ${token}` } });
+  const r = await zohoFetch(url, { headers:{ Authorization:`Zoho-oauthtoken ${token}` } });
   if (r.status === 204) return {};
   return r.json();
 }
@@ -111,13 +142,16 @@ function parseZohoDate(val){
 }
 // COQL: fetch Calls whose Call_Start_Time is within [startDT, endDT],
 // paginated up to COQL's ~2000-record ceiling.
-async function coqlCalls(token, startDT, endDT){
+// Reports whether it hit the ceiling rather than returning a short list, so the
+// caller can split the window instead of silently storing fewer calls.
+async function coqlCallsWindow(token, startDT, endDT){
   const out = [];
   let offset = 0;
+  let truncated = false;
   while (true){
-    const q = `SELECT Owner, Call_Duration_in_seconds, Call_Start_Time, Call_Type, Call_Status `
-            + `FROM Calls WHERE Call_Start_Time between '${startDT}' and '${endDT}' LIMIT ${offset}, 200`;
-    const r = await fetch(`${API_DOMAIN}/crm/v2/coql`, {
+    const q = `select Owner, Call_Duration_in_seconds, Call_Start_Time, Call_Type, Call_Status `
+            + `from Calls where Call_Start_Time between '${startDT}' and '${endDT}' limit ${offset}, 200`;
+    const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
       method:"POST",
       headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" },
       body: JSON.stringify({ select_query: q }),
@@ -128,9 +162,9 @@ async function coqlCalls(token, startDT, endDT){
     out.push(...data.data);
     if (!data.info?.more_records) break;
     offset += 200;
-    if (offset >= 2000) break; // COQL offset ceiling
+    if (offset >= COQL_OFFSET_CEILING) { truncated = true; break; }
   }
-  return out;
+  return { rows: out, truncated };
 }
 
 // Instant of 00:00:00 America/New_York on `dateStr`, as a UTC Date — DST-safe.
@@ -151,31 +185,80 @@ function nyMidnightUTC(dateStr){
 }
 const fmtCOQL = d => d.toISOString().replace(/\.\d{3}Z$/, "+00:00");
 
-// All Calls on `date` (Eastern-time calendar day). Uses COQL datetime range so
-// ANY date works regardless of age. Split into two half-day windows so heavy
-// days stay under COQL's 2000-record ceiling.
-async function fetchCallsForDay(token, date){
-  const dayStart = nyMidnightUTC(date);
-  const dayMid   = new Date(dayStart.getTime() + 12 * 60 * 60 * 1000);
-  const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1000);
-  const windows = [
-    [fmtCOQL(dayStart), fmtCOQL(new Date(dayMid.getTime() - 1000))],
-    [fmtCOQL(dayMid), fmtCOQL(dayEnd)],
-  ];
-  const all = [];
-  for (const [s, e] of windows){ all.push(...await coqlCalls(token, s, e)); }
-  return all;
+// All Calls on `date` (Eastern-time calendar day). Uses a COQL datetime range so
+// any date works regardless of age.
+//
+// Two 12-hour windows was not enough. The Calls query carries no owner filter,
+// so COQL's 2000-record ceiling applies to org-wide volume: on 21 August 2026
+// the afternoon window held 3,002 calls and 1,002 were dropped without a word.
+// Modelled across the month that cost roughly 5,600 calls, which is why every
+// builder's August total read about 15% low against the CRM's own export.
+//
+// So each window now reports truncation and halves itself until it fits. Four
+// 6-hour windows to start: cheap on a normal day, and each subdivides only if
+// the volume warrants. Ported from api/_lib/report-core.js in the live repo,
+// which fixed this in commit d47721b — this file never received it.
+const MIN_SPAN_MS = 60 * 1000;
+
+// `read` is a seam for the tests: they hand in a reader backed by a real day's
+// export so the splitting can be exercised against actual volumes rather than
+// against a guess about them. Production always uses the default.
+async function readCallSpan(token, fromMs, toMs, depth = 0, read = coqlCallsWindow){
+  const { rows, truncated } = await read(
+    token, fmtCOQL(new Date(fromMs)), fmtCOQL(new Date(toMs)));
+  if (!truncated) return rows;
+  // Below a minute a split cannot help: more than 2000 calls inside one minute
+  // would be the same records however the span is cut. Throwing beats returning
+  // a short count that looks fine.
+  if (toMs - fromMs <= MIN_SPAN_MS || depth > 12){
+    throw new Error(
+      `Calls window ${new Date(fromMs).toISOString()}..${new Date(toMs).toISOString()} `
+      + `exceeds COQL's ${COQL_OFFSET_CEILING}-record limit and cannot be split further`);
+  }
+  const mid = fromMs + Math.floor((toMs - fromMs) / 2);
+  const [a, b] = await Promise.all([
+    readCallSpan(token, fromMs, mid, depth + 1, read),
+    readCallSpan(token, mid + 1000, toMs, depth + 1, read),   // +1s so the halves cannot overlap
+  ]);
+  return a.concat(b);
 }
-// Records in a module whose `dateField` equals `date` (Zoho /search only supports equals)
+
+async function fetchCallsForDay(token, date){
+  const dayStart = nyMidnightUTC(date).getTime();
+  const H6 = 6 * 60 * 60 * 1000;
+  const parts = await Promise.all([0, 1, 2, 3].map(i =>
+    readCallSpan(token, dayStart + i * H6, dayStart + (i + 1) * H6 - 1000)));
+  return parts.flat();
+}
+// Records in a module whose `dateField` equals `date`.
+//
+// Read through COQL, not /search. Zoho's /search is index-backed and
+// eventually-consistent, so it returns approximate results: measured against the
+// CRM's own export for August 2026 it lost four to six presentations a day,
+// about 26% of the month's total. funnel.js and bde.js were moved to COQL for
+// exactly this reason; this file was not.
 async function fetchByDay(token, module, fields, date, dateField){
-  let all = [], page = 1;
+  let all = [], offset = 0;
   while (true){
-    const url = `${API_DOMAIN}/crm/v2/${module}/search?fields=${fields}&criteria=(${dateField}:equals:${date})&per_page=200&page=${page}`;
-    const data = await zohoGet(token, url);
+    const q = `select ${fields} from ${module} where ${dateField} = '${date}' limit ${offset}, 200`;
+    const r = await zohoFetch(`${API_DOMAIN}/crm/v2/coql`, {
+      method:"POST",
+      headers:{ Authorization:`Zoho-oauthtoken ${token}`, "Content-Type":"application/json" },
+      body: JSON.stringify({ select_query: q }),
+    });
+    if (r.status === 204) break;
+    const data = await r.json();
     if (!data?.data?.length) break;
     all = all.concat(data.data);
     if (!data.info?.more_records) break;
-    page++;
+    offset += 200;
+    // A single day of one module going past 2000 would need the same time
+    // splitting the Calls read has. Say so rather than storing a short count.
+    if (offset >= COQL_OFFSET_CEILING){
+      throw new Error(
+        `${module}.${dateField} on ${date} exceeds COQL's ${COQL_OFFSET_CEILING}-record `
+        + `limit; this fetch needs splitting by time like the Calls one`);
+    }
   }
   return all;
 }
@@ -223,7 +306,12 @@ const hasActivity = r =>
 async function snapshotDay(date){
   const token = await getToken();
 
-  const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=ActiveUsers&per_page=200`);
+  // AllUsers, not ActiveUsers. Someone deactivated in Zoho still owns the calls
+  // and deals they logged while they were here; ActiveUsers dropped them from the
+  // id map, so their work vanished from the day entirely. The CRM export for
+  // August lists 30 builders where this file had recorded 20. Same fix as the
+  // live repo's commit f3bdf4d — the roster is filtered separately, further down.
+  const ud = await zohoGet(token, `${API_DOMAIN}/crm/v2/users?type=AllUsers&per_page=200`);
   const allUsers = ud?.users || [];
 
   const builderMap = {}, closerMap = {};
