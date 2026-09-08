@@ -403,7 +403,7 @@ const viewLabel = i => VIEW_LABELS[i] || "Slide " + (i - DATA_VIEWS + 1);
 
 function pipsMarkup(view) {
   return Array.from({ length: totalViews() }, (_, i) => {
-    const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / ROTATE_SECONDS) * 100).toFixed(0);
+    const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / secondsForView(i)) * 100).toFixed(0);
     const on = i === view;
     return `<button class="tv-pip" data-view="${i}" title="${on && STATE.paused ? "Resume rotation" : "Jump to " + viewLabel(i)}"
       style="all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 4px">
@@ -427,7 +427,17 @@ document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest(".tv-pip");
   if (b) goToView(Number(b.dataset.view));
 });
-const ROTATE_SECONDS = 30;
+// A leaderboard needs long enough to read a column of names and numbers; a
+// poster is taken in at a glance. One duration for both meant that dropping the
+// slides to ten seconds would have flipped the data boards just as fast, so the
+// two are separate.
+//
+// With 18 brag-board slides the full cycle is 4x30 + 18x10 = 300s, so each data
+// board comes round once every five minutes rather than every two and a half.
+// That is the deliberate cost of showing the whole set.
+const ROTATE_SECONDS = 30;   // data boards
+const SLIDE_SECONDS  = 10;   // promo slides
+const secondsForView = v => (v >= DATA_VIEWS ? SLIDE_SECONDS : ROTATE_SECONDS);
 
 // Don't paint until real data has arrived — painting an empty board on
 // initial fit(), then again on the resize event(s) the browser fires right
@@ -764,7 +774,7 @@ function render() {
     if (_renderedSlide !== src) {
       _renderedSlide = src;
       document.getElementById("board-root").innerHTML = `
-        <div style="position:fixed;inset:0;background:#ffffff;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        <div style="position:fixed;inset:0;background:#fbf8f0;display:flex;align-items:center;justify-content:center;overflow:hidden">
           <img src="${src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">
         </div>`;
     }
@@ -1042,7 +1052,7 @@ function startTicking() {
       // keep the clock and the data refresh running.
       if (STATE.paused) { updateChrome(); return; }
       STATE.elapsed += 0.5;
-      if (STATE.elapsed >= ROTATE_SECONDS) {
+      if (STATE.elapsed >= secondsForView(STATE.view)) {
         STATE.view = (STATE.view + 1) % totalViews();
         STATE.elapsed = 0;
         runCountUp();
