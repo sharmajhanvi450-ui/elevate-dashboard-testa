@@ -373,6 +373,7 @@ async function loadPromoSlides() {
 // ── State ────────────────────────────────────────────────────────────────────
 let STATE = {
   view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders, 3 BDE, then promo slides
+  page: 0,          // which slide of the Builder board (see builderPages)
   elapsed: 0,
   paused: false,    // set by goToView() when someone jumps to a view on purpose
   scale: 1,
@@ -403,7 +404,12 @@ const viewLabel = i => VIEW_LABELS[i] || "Slide " + (i - DATA_VIEWS + 1);
 
 function pipsMarkup(view) {
   return Array.from({ length: totalViews() }, (_, i) => {
-    const fill = i < view ? 100 : i > view ? 0 : Math.min(100, (STATE.elapsed / secondsForView(i)) * 100).toFixed(0);
+    // The Builders pip covers every slide of that view, so the bar tracks the
+    // whole run rather than resetting to empty when the second slide appears.
+    const pages = i === 0 ? builderPages().length : 1;
+    const done  = i === 0 ? STATE.page : 0;
+    const fill = i < view ? 100 : i > view ? 0
+      : Math.min(100, ((done + STATE.elapsed / secondsForView(i)) / pages) * 100).toFixed(0);
     const on = i === view;
     return `<button class="tv-pip" data-view="${i}" title="${on && STATE.paused ? "Resume rotation" : "Jump to " + viewLabel(i)}"
       style="all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 4px">
@@ -417,7 +423,7 @@ function pipsMarkup(view) {
 
 function goToView(i) {
   if (i === STATE.view) { STATE.paused = !STATE.paused; }
-  else { STATE.view = i; STATE.elapsed = 0; STATE.paused = true; }
+  else { STATE.view = i; STATE.page = 0; STATE.elapsed = 0; STATE.paused = true; }
   render();
   runCountUp();
 }
@@ -438,6 +444,21 @@ document.addEventListener("click", e => {
 const ROTATE_SECONDS = 30;   // data boards
 const SLIDE_SECONDS  = 10;   // promo slides
 const secondsForView = v => (v >= DATA_VIEWS ? SLIDE_SECONDS : ROTATE_SECONDS);
+
+// The Builder board splits across slides rather than shrinking to fit. Eighteen
+// builders on one screen meant five columns of four, and at that row count the
+// cards are too short to read from across the floor. Nine to a slide keeps them
+// at the size they were designed for and just takes two turns instead of one.
+const BUILDERS_PER_PAGE = 9;
+
+// Split evenly, so ten builders give two slides of five rather than nine and a
+// lone card on its own screen.
+function builderPages() {
+  const b = STATE.builders;
+  const n = Math.max(1, Math.ceil(b.length / BUILDERS_PER_PAGE));
+  const per = Math.ceil(b.length / n);
+  return Array.from({ length: n }, (_, i) => b.slice(i * per, (i + 1) * per));
+}
 
 // Don't paint until real data has arrived — painting an empty board on
 // initial fit(), then again on the resize event(s) the browser fires right
@@ -636,7 +657,7 @@ function teamRollup(members, mtd) {
   return t;
 }
 
-function teamCard(team, members) {
+function teamCard(team, members, rowSlots = members.length) {
   const active = members.filter(m => !m.onLeave);
   const roll = teamRollup(members, STATE.mtdByName);
   const money = n => "$" + Math.round(n).toLocaleString();
@@ -659,24 +680,28 @@ function teamCard(team, members) {
   const health = members.length ? Math.round(members.reduce((s,m) => s + m.score, 0) / members.length) : 0;
   const t = TIER[zone(health)];
   const sortedMembers = [...active.sort((a,b) => b.score - a.score), ...members.filter(m => m.onLeave)];
+  // Nine or more rows have to share the height eight used to have, so the row
+  // contents come down with them rather than spilling over the row below.
+  const rs = rowSlots > 8 ? 8 / rowSlots : 1;
+  const z = v => Math.max(1, Math.round(v * rs));
   const membersHtml = sortedMembers.map(m => {
     const mt = TIER[m.tier];
     const memberScoreFinal = m.onLeave ? "" : Math.round(m.score);
-    return `<div style="flex:1;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.05)">
-      <div style="width:40px;height:40px;border-radius:50%;flex:none;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
+    return `<div style="min-height:0;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden">
+      <div style="width:${z(40)}px;height:${z(40)}px;border-radius:50%;flex:none;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
         ${avatarBgHtml(m.name)}
-        <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:14px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
+        <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:${z(14)}px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
-        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#6c769b;text-transform:uppercase">${m.role}</div>
+        <div style="font-family:'Nunito Sans',sans-serif;font-size:${z(22)}px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-size:${z(11)}px;font-weight:800;letter-spacing:1.5px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${m.role}</div>
       </div>
       <div style="width:112px;flex:none">
         <div style="height:5px;border-radius:3px;background:rgba(255,255,255,0.1);overflow:hidden">
           <div style="height:5px;border-radius:3px;background:${mt.ink};width:${m.onLeave?0:Math.min(100,(m.score/150)*100).toFixed(0)}%"></div>
         </div>
       </div>
-      <div class="${m.onLeave?'':'tv-cnt'}" data-final="${memberScoreFinal}" style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave ? "—" : "0%"}</div>
+      <div class="${m.onLeave?'':'tv-cnt'}" data-final="${memberScoreFinal}" style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:${z(28)}px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave ? "—" : "0%"}</div>
     </div>`;
   }).join("");
 
@@ -700,7 +725,7 @@ function teamCard(team, members) {
         ${statTile("Pres → Enrolment", roll.presHeld ? roll.convPct + "%" : "—", roll.admissions + " of " + roll.presHeld + " held", roll.convColor)}
       </div>
     </div>
-    <div style="flex:1;min-height:0;display:flex;flex-direction:column">${membersHtml}</div>
+    <div style="flex:1;min-height:0;display:grid;grid-template-rows:repeat(${rowSlots},minmax(0,1fr))">${membersHtml}</div>
   </div>`;
 }
 
@@ -833,8 +858,12 @@ function render() {
       const health = members.length ? Math.round(members.reduce((s,m) => s+m.score, 0) / members.length) : 0;
       return { name, members, health };
     });
-    cols = 3;
-    cardsHtml = teams.map(t => teamCard(t.name, t.members)).join("");
+    cols = teams.length || 1;
+    // One shared row count across the cards: without it each card divided its
+    // own height by its own member count, so an eight-person team's rows sat
+    // between a ten-person team's and nothing lined up across the board.
+    const rowSlots = Math.max(1, ...teams.map(t => t.members.length));
+    cardsHtml = teams.map(t => teamCard(t.name, t.members, rowSlots)).join("");
     viewTitle = "Team Leader Board"; viewSub = "Team health score · average of all member scores";
     const best = teams.slice().sort((a,b) => b.health - a.health)[0] || { name: "—", health: 0 };
     leaderHtml = `${initials(best.name)}|${best.name}|TOP TEAM`;
@@ -863,10 +892,19 @@ function render() {
     ];
     tickerText = "DEALS CLOSED "+sum("dealsClosed")+"   ·   REVENUE $"+sum("revenue").toLocaleString()+"   ·   "+top.name.toUpperCase()+" LEADS AT "+top.score+"%   ·   2+ DEALS = GUARANTEED GOLDEN CARD   ·   ";
   } else {
-    const g = gridFor(builders.length);
+    // One slide of the roster at a time. The rank badge is the builder's
+    // position on the whole board, not on the slide, so #10 stays #10 when it
+    // moves to the second screen.
+    const pages = builderPages();
+    const page  = Math.min(STATE.page, pages.length - 1);
+    const shown = pages[page] || [];
+    const offset = pages.slice(0, page).reduce((n, p) => n + p.length, 0);
+    const g = gridFor(shown.length);
     cols = g.cols;
-    cardsHtml = builders.map((p,i) => personCard(p, i, false, g.density)).join("");
-    viewTitle = "Builder Board"; viewSub = "Calls 20% · minutes 20% · leads 10% · discoveries 15% · pres booked 10% · pres completed 25%";
+    cardsHtml = shown.map((p,i) => personCard(p, offset + i, false, g.density)).join("");
+    viewTitle = "Builder Board";
+    viewSub = (pages.length > 1 ? `Ranks ${offset+1}–${offset+shown.length} of ${builders.length} · slide ${page+1}/${pages.length} · ` : "")
+      + "Calls 20% · minutes 20% · leads 10% · discoveries 15% · pres booked 10% · pres completed 25%";
     const top = builders[0] || { name:"—", score:0, tier:"red" };
     leaderHtml = `${initials(top.name)}|${top.name}|TOP BUILDER · ${TIER[top.tier].label}`;
     leaderScoreFinal = top.score;
@@ -1053,7 +1091,9 @@ function startTicking() {
       if (STATE.paused) { updateChrome(); return; }
       STATE.elapsed += 0.5;
       if (STATE.elapsed >= secondsForView(STATE.view)) {
-        STATE.view = (STATE.view + 1) % totalViews();
+        const pages = STATE.view === 0 ? builderPages().length : 1;
+        if (STATE.page + 1 < pages) { STATE.page += 1; }
+        else { STATE.page = 0; STATE.view = (STATE.view + 1) % totalViews(); }
         STATE.elapsed = 0;
         runCountUp();
       } else {
