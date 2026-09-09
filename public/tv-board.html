@@ -465,9 +465,31 @@ function builderPages() {
 // after navigation, then again once data loads, is what produced the
 // "blinks 3 times" flash when coming back to this page.
 let _dataLoadedOnce = false;
+
+// The board is drawn at a fixed 1920x1080 and scaled down to the window. The
+// scale used to live only in STATE, written into the markup by render() — so
+// whenever the window's size and the last render disagreed, the board stayed
+// at the old scale, overflowed the window and was clipped on the right. Write
+// it straight onto the node instead: that costs nothing, needs no re-render,
+// and can be redone after every render and on every size change.
+const BOARD_W = 1920, BOARD_H = 1080;
+function applyScale() {
+  const el = document.getElementById("board-canvas");
+  if (!el) return;
+  // clientWidth excludes a scrollbar; innerWidth does not. Either can read 0
+  // on a hidden or not-yet-laid-out tab, and scaling to that would leave the
+  // board stuck at the 0.1 floor once it became visible — keep the last good
+  // scale until there is a real size to work from.
+  const w = document.documentElement.clientWidth  || window.innerWidth;
+  const h = document.documentElement.clientHeight || window.innerHeight;
+  if (!w || !h) return;
+  const next = Math.max(0.1, Math.min(w / BOARD_W, h / BOARD_H));
+  if (Math.abs(next - STATE.scale) < 0.0001 && el.style.transform) return;
+  STATE.scale = next;
+  el.style.transform = `scale(${next.toFixed(4)})`;
+}
 function fit() {
-  const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
-  STATE.scale = Math.max(0.1, s);
+  applyScale();
   if (_dataLoadedOnce) render();
 }
 let _resizeTimer = null;
@@ -733,13 +755,18 @@ function teamCard(team, members, rowSlots = members.length) {
 function bdeMemberCard(m) {
   const t = TIER[m.tier];
   const celebrate = m.tier === "gold";
+  // A display row (a lead-type breakdown) is context, not a target, so it
+  // carries target: null. Calling toLocaleString() on that threw, and the throw
+  // came out of render() — which left the whole board unpainted and stuck at
+  // whatever scale it last had, on every view, not just this one.
+  const num = v => (v === null || v === undefined || Number.isNaN(v)) ? null : Number(v).toLocaleString();
   const rowsHtml = m.rows.map(r => `
     <div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:7px 10px;display:flex;flex-direction:column;gap:5px">
       <div style="display:flex;align-items:baseline;gap:8px">
         <span style="font-size:12px;font-weight:800;letter-spacing:0.9px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
         <span style="flex:1;min-width:0;font-size:10px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${r.actual.toLocaleString()}</span>
-        <span style="font-size:11px;font-weight:700;color:#6c769b">/ ${r.target.toLocaleString()}</span>
+        <span style="font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${num(r.actual) ?? "—"}</span>
+        ${num(r.target) != null ? `<span style="font-size:11px;font-weight:700;color:#6c769b">/ ${num(r.target)}</span>` : ""}
         <span style="font-size:13px;font-weight:900;color:${r.color};min-width:44px;text-align:right">${r.pctLabel}</span>
       </div>
       <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
@@ -940,7 +967,7 @@ function render() {
       <div style="position:absolute;width:1100px;height:1100px;left:-260px;top:-380px;border-radius:50%;background:radial-gradient(circle,rgba(255,77,58,0.16) 0%,transparent 62%);animation:omDrift 26s ease-in-out infinite"></div>
       <div style="position:absolute;width:1000px;height:1000px;right:-240px;bottom:-360px;border-radius:50%;background:radial-gradient(circle,rgba(0,230,118,0.13) 0%,transparent 62%);animation:omDrift 34s ease-in-out infinite reverse"></div>
     </div>
-    <div style="width:1920px;height:1080px;flex:none;position:relative;transform:scale(${STATE.scale.toFixed(4)})">
+    <div id="board-canvas" style="width:1920px;height:1080px;flex:none;position:relative;transform-origin:50% 50%;transform:scale(${STATE.scale.toFixed(4)})">
       <div style="position:absolute;inset:0;display:grid;grid-template-rows:92px auto 1fr 54px;padding:22px 40px 18px;gap:14px">
 
         <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.09);padding-bottom:14px">
@@ -1011,6 +1038,11 @@ function render() {
       </div>
     </div>
   </div>`;
+
+  // render() replaces the canvas node, so the scale has to go back on. Reading
+  // the window here rather than trusting STATE means a resize that arrived
+  // before the board had data still lands correctly on this first paint.
+  applyScale();
 
   // render() is also called directly (resize, the 3-min data refresh) with
   // no animateScores() to follow — snap every score straight to its final
@@ -1088,6 +1120,11 @@ function startTicking() {
       STATE.now = new Date();
       // Paused means someone jumped to a view to look at it — hold there, but
       // keep the clock and the data refresh running.
+      // Cheap enough to do on every tick, and it means the board cannot stay
+      // at the wrong scale for more than half a second no matter which resize
+      // signal the TV's browser fails to send. Returns immediately when the
+      // scale has not moved.
+      applyScale();
       if (STATE.paused) { updateChrome(); return; }
       STATE.elapsed += 0.5;
       if (STATE.elapsed >= secondsForView(STATE.view)) {
@@ -1122,6 +1159,10 @@ function startDataRefresh() {
 function initBoard() {
   fit();
   window.addEventListener("resize", onResize);
+  // A resize event is not guaranteed for every size change a TV browser goes
+  // through — entering kiosk mode, the on-screen chrome settling after load,
+  // a display waking up. Observing the element catches those too.
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(document.documentElement);
   // Work out which slides actually exist before ticking, so the rotation
   // never lands on a slide that would render blank.
   loadPromoSlides().then(() => {
