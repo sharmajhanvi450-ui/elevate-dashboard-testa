@@ -6,15 +6,22 @@
 <title>ElevateMe — Floor TV Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: #05060b; overflow: hidden; height: 100%; font-family: 'Nunito Sans', sans-serif; color: #eef0f7; }
+  html, body { background: #05060b; overflow: hidden; height: 100%; font-family: Barlow, sans-serif; color: #eef0f7; }
   @keyframes omDrift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(4%,-3%,0) scale(1.15); } 100% { transform: translate3d(0,0,0) scale(1); } }
   @keyframes omShine { 0% { transform: translateX(-120%) skewX(-18deg); } 55%, 100% { transform: translateX(320%) skewX(-18deg); } }
   @keyframes omPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
   @keyframes omMarquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
   @keyframes omRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes omTakeover { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: scale(1); } }
+  @keyframes omNameIn { from { opacity: 0; transform: translateY(38px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes omRingOut { 0% { transform: scale(0.6); opacity: 0.85; } 100% { transform: scale(2.1); opacity: 0; } }
+  @keyframes omFall { 0% { transform: translateY(-60px) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(1120px) rotate(560deg); opacity: 0.9; } }
+  @keyframes omSpin { to { transform: rotate(360deg); } }
+  @keyframes omEmber { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 18% { opacity: 0.95; } 100% { transform: translateY(-86px) scale(0.25); opacity: 0; } }
+  @keyframes omEventIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
   .tv-avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 
   /* Tiny hidden control — invisible until hovered, top-right corner */
@@ -53,6 +60,7 @@
 <body>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/scoring.js"></script>
 
 <!-- Hidden ad-hoc date control — invisible on the TV, only shows on mouse hover (for setup/debugging on a machine with a mouse, not meant to be touched on the TV itself) -->
 <div id="hidden-controls-trigger"></div>
@@ -112,30 +120,91 @@ const SALES_TEAM_MEMBERS = [
   { name: "Vidhi Patel",       team: "Mamta Das", role: "Closer"  },
 ];
 
+// ── Standing in for /config.js and /scoring.js ──────────────────────────────
+// The live board loads both; this deploy has neither, so the handful of things
+// the board actually uses from them are defined here against test's own values.
+// Keeping the shape identical is what lets the rest of this file stay a
+// straight copy of the live board.
+const BD_TEAM_LEADS = {
+  "Ronak Khant": "Dhanraj Solanki", "Jiya Chandrawanshi": "Dhanraj Solanki",
+  "Bhoomi Barot": "Dhanraj Solanki", "Sunil Patel": "Dhanraj Solanki",
+  "Meet Patel": "Dhanraj Solanki", "Heer Nakum": "Prem Thakar", "Ajay Darbar": "Prem Thakar",
+};
+// BD roster, in the shape bdMembersOf() expects.
+const BD_TEAM_MEMBERS = [
+  { name: "Ronak Khant",        kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Ronak Khant"] },
+  { name: "Jiya Chandrawanshi", kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Jiya Chandrawanshi"] },
+  { name: "Bhoomi Barot",       kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Bhoomi Barot"] },
+  { name: "Heer Nakum",         kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Heer Nakum"] },
+  { name: "Ajay Darbar",        kpiTeam: "Portal Team",   team: BD_TEAM_LEADS["Ajay Darbar"] },
+  { name: "Sunil Patel",        kpiTeam: "Portal Team",   team: BD_TEAM_LEADS["Sunil Patel"] },
+  { name: "Meet Patel",         kpiTeam: "Referral Team", team: BD_TEAM_LEADS["Meet Patel"] },
+];
+const bdMembersOf = t => BD_TEAM_MEMBERS.filter(m => m.kpiTeam === t).map(m => m.name);
+
+// No login on this deploy, so the gate is open and the overlay is a no-op.
+const ALLOWED_EMAILS = [];
+const APP_USERS_READY = Promise.resolve();
+const isPageAllowed = () => true;
+const showAuthOverlay = () => {};
+// Two more helpers the live config.js supplies. Both already swallow their own
+// failures, so a missing kpi_target_overrides table on this project just means
+// no overrides, which is the state this board was in anyway.
+async function fetchTargetOverrides(months) {
+  const wanted = [...new Set((Array.isArray(months) ? months : [months]).filter(Boolean))];
+  const clauses = wanted.map(m => `month.eq.${m}`).concat("month.is.null");
+  const url = `${SUPABASE_URL}/rest/v1/kpi_target_overrides`
+    + `?select=person_key,kpi_label,month,monthly_target`
+    + `&or=(${clauses.join(",")})`;
+  try {
+    const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } });
+    return r.ok ? await r.json() : [];
+  } catch { return []; }
+}
+
+async function readApiJson(res, what) {
+  const body = await res.text();
+  let data = null;
+  try { data = JSON.parse(body); } catch { /* not JSON — handled below */ }
+  if (data && typeof data === "object") {
+    if (!res.ok) throw new Error(data.error || `${what || "Request"} failed (${res.status})`);
+    return data;
+  }
+  if (res.status === 504 || /timed?\s*out|FUNCTION_INVOCATION_TIMEOUT/i.test(body)) {
+    throw new Error(`${what || "The request"} took too long and was cut off — try a shorter date range.`);
+  }
+  throw new Error(`${what || "Request"} failed (${res.status}) — the server did not return JSON.`);
+}
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// ── Scoring — identical formulas to live/public/index.html ──────────────────
+// ── Scoring — identical formulas to public/index.html / public/config.js ────
 const B_T = { calls:150, minutes:180, leads:4, discoveries:2, presBooked:2, presCompleted:2 };
-const B_W = { calls:0.20, minutes:0.20, leads:0.10, discoveries:0.15, presBooked:0.10, presCompleted:0.25 };
 const C_T = { calls:60, minutes:120, presentations:2 };
-const C_W = { calls:0.40, minutes:0.20, presentations:0.40 };
+// Weights live in /scoring.js; the local copies had no caller left.
 const cap = (v, t) => Math.min(150, t > 0 ? (v / t) * 100 : 0);
 
-function scoreBuilder(b, t) {
-  return Math.round(
-    cap(b.calls,t.calls)*B_W.calls + cap(b.minutes,t.minutes)*B_W.minutes +
-    cap(b.leads,t.leads)*B_W.leads + cap(b.discoveries,t.discoveries)*B_W.discoveries +
-    cap(b.presBooked,t.presBooked)*B_W.presBooked + cap(b.presCompleted,t.presCompleted)*B_W.presCompleted
-  );
+// Scoring comes from /scoring.js. This copy hardcoded 2/1 deal thresholds and
+// applied no per-person overrides, so a team lead's settings never showed on
+// the board even though the dashboard honoured them.
+function scoreBuilder(b, t, w){ return Scoring.builder(b, t, w); }
+function scoreCloser(c, t, deals, w){ return Scoring.closer(c, t, deals, w); }
+const zone = Scoring.zone;
+const zoneCloser = Scoring.zoneCloser;
+
+// Per-person overrides, loaded once and refreshed with the board's own cycle.
+let TARGET_ROWS = [];
+let _overridesFetchedAt = 0, _overridesMonth = "";
+const OVERRIDES_TTL_MS = 15 * 60 * 1000;
+// Targets change a few times a month, but this board reloads every 3
+// minutes for hours on end. Refetching them each cycle was the biggest
+// single source of egress from this page, so they are cached.
+async function loadTargetOverrides(month){
+  const fresh = Date.now() - _overridesFetchedAt < OVERRIDES_TTL_MS;
+  if (fresh && _overridesMonth === month && TARGET_ROWS.length) return;
+  TARGET_ROWS = await fetchTargetOverrides(month);
+  _overridesFetchedAt = Date.now();
+  _overridesMonth = month;
 }
-function scoreCloser(c, t) {
-  const k = cap(c.calls,t.calls)*C_W.calls + cap(c.minutes,t.minutes)*C_W.minutes + cap(c.presentations,t.presentations)*C_W.presentations;
-  if (c.dealsClosed >= 2) return Math.round(Math.min(Math.max(k * 1.50, 110), 150));
-  if (c.dealsClosed === 1) return Math.round(Math.min(Math.max(k * 1.25, 95), 125));
-  return Math.round(Math.min(k, 110));
-}
-const zone = s => s >= 110 ? "gold" : s >= 95 ? "green" : s >= 75 ? "yellow" : s >= 50 ? "orange" : "red";
-const zoneCloser = (c, s) => (c.calls === 0 && c.dealsClosed === 0) ? "red" : zone(s);
 
 const TIER = {
   gold:   { ink:"#ffd740", line:"rgba(255,215,64,0.62)",  bg:"linear-gradient(150deg,#1d1804 0%,#0b0a04 100%)", label:"Golden Card" },
@@ -153,66 +222,85 @@ Object.keys(TIER).forEach(k => { TIER[k].rgb = a => `rgba(${RGB[k]},${a})`; });
 // public/bde-scorecard.html so the TV board and that page always agree.
 const BDE_TEAMS = [
   { name: "LinkedIn Team", role: "LinkedIn BDE",
-    members: ["Ronak Khant", "Jiya Chandrawanshi", "Bhoomi Barot", "Heer Nakum"],
+    members: bdMembersOf("LinkedIn Team"),
     kpis: [
       { label: "ICP Moderate", note: "Leads Generated", get: b => (b.types||{})["ICP Moderate"]||0, dailyTarget: 4,  weight: 0.70 },
       { label: "ICP Cold",     note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0,     dailyTarget: 15, weight: 0.30 },
     ] },
   { name: "Portal Team", role: "Portal BDE",
-    members: ["Ajay Darbar", "Sunil Patel"],
+    members: bdMembersOf("Portal Team"),
+    // Scored on one number: the leads generated, whatever type they are. Ajay was
+    // on funnel conversion and Sunil on a 70/25/5 split across the three types;
+    // both are gone. The three rows below stay as context so the mix is still
+    // visible, but only the combined row carries the score.
     kpis: [
-      { label: "ICP Cold + Parser", note: "Leads Generated", get: b => ((b.types||{})["ICP Cold"]||0) + ((b.types||{})["ICP Parser"]||0), dailyTarget: 120, weight: 1.00 },
+      { label: "ICP Leads",    note: "Parser + Cold + Moderate",
+        get: b => ((b.types||{})["ICP Parser"]||0) + ((b.types||{})["ICP Cold"]||0) + ((b.types||{})["ICP Moderate"]||0),
+        dailyTarget: 150, weight: 1.00 },
+      { label: "ICP Parser",   note: "Leads Generated", get: b => (b.types||{})["ICP Parser"]||0,   display: true },
+      { label: "ICP Cold",     note: "Leads Generated", get: b => (b.types||{})["ICP Cold"]||0,     display: true },
+      { label: "ICP Moderate", note: "Leads Generated", get: b => (b.types||{})["ICP Moderate"]||0, display: true },
     ] },
   { name: "Referral Team", role: "Referral BDE",
-    members: ["Meet Patel"],
+    members: bdMembersOf("Referral Team"),
     kpis: [
       { label: "ICP Moderate", note: "Leads Generated",  get: b => (b.types||{})["ICP Moderate"]||0,  dailyTarget: 2,  weight: 0.30 },
       { label: "ICP Cold",     note: "Leads Generated",  get: b => (b.types||{})["ICP Cold"]||0,      dailyTarget: 10, weight: 0.20 },
       { label: "Reference",    note: "Source = Reference", get: b => (b.sourceGroups||{}).Reference||0, dailyTarget: 1,  weight: 0.50 },
     ] },
 ];
-const BDE_TEAM_LEADS = {
-  "Ronak Khant": "Dhanraj Solanki", "Jiya Chandrawanshi": "Dhanraj Solanki",
-  "Bhoomi Barot": "Dhanraj Solanki", "Sunil Patel": "Dhanraj Solanki",
-  "Meet Patel": "Dhanraj Solanki", "Heer Nakum": "Prem Thakar", "Ajay Darbar": "Prem Thakar",
-};
+// Reporting lead per BDE, from config.js.
+const BDE_TEAM_LEADS = BD_TEAM_LEADS;
 // Summary funnel shown under each BDE card — current + carried-over totals.
+// Stage-to-stage conversion through the full funnel, computed exactly as
+// bde-scorecard.html does it so the board and the scorecard agree. Null where
+// the previous stage is empty: the conversion is undefined then, not zero.
+const BDE_FUNNEL_ORDER = ["generated","touched","connected","qualified","discovery","presBooked","presHeld","enrolled"];
+const BDE_STAGE_OF_LABEL = {
+  "Touched":"touched", "Connected":"connected", "Qualified":"qualified",
+  "Discovery":"discovery", "Pres. Booked":"presBooked", "Pres. Held":"presHeld",
+  "Enrolled":"enrolled",
+};
+const BDE_CONV_CAP = 150;
+function bdeFunnelConv(b) {
+  const cur = b.cur || {}, old = b.old || {};
+  const out = {};
+  let prev = null;
+  for (const stage of BDE_FUNNEL_ORDER) {
+    const total = (cur[stage] || 0) + (old[stage] || 0);
+    out[stage] = prev === null ? null : (prev > 0 ? total / prev * 100 : null);
+    prev = total;
+  }
+  return out;
+}
 const BDE_FUNNEL = [["Generated","generated"], ["Qualified","qualified"], ["Pres. Held","presHeld"], ["Enrolled","enrolled"]];
 
 const initials = n => n.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
 const slug = n => n.toLowerCase().replace(/\s+/g, "-");
 function avatarBgHtml(name) {
+  // Same .png → .jfif → initials fallback chain used elsewhere in the app.
   return `<img class="tv-avatar-img" src="/photos/${slug(name)}.png"
     onerror="this.onerror=null;this.src='/photos/${slug(name)}.jfif';this.onerror=function(){this.style.display='none';this.nextElementSibling.style.opacity=1;};">`;
 }
 const barColor = p => p >= 100 ? "#00e676" : p >= 75 ? "#ffab00" : "#ff4d6a";
 
-// ── Data fetching — test's report.js has no auth check, so no bearer token ──
+// ── Data fetching ────────────────────────────────────────────────────────────
+async function authHeader() {
+  const { data: { session } } = await _supabase.auth.getSession();
+  return { Authorization: `Bearer ${session?.access_token || ""}` };
+}
 async function fetchRole(role, startDate, endDate) {
-  const res = await fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=${role}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `${role} fetch failed`);
+  const res = await fetch(`/api/report?startDate=${startDate}&endDate=${endDate}&slot=7pm&role=${role}`, { headers: await authHeader() });
+      const data = await readApiJson(res, `${role} report`);
   return data;
 }
-async function fetchLeaveMap(startDate, endDate) {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/attendance?date=gte.${startDate}&date=lte.${endDate}&status=eq.leave&select=person_name,date`,
-      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } });
-    if (!r.ok) return {};
-    const rows = await r.json();
-    const map = {}; rows.forEach(row => { map[row.person_name] = (map[row.person_name] || 0) + 1; });
-    return map;
-  } catch { return {}; }
-}
-
 // BDE data is a separate endpoint. A failure here must not take the whole
 // board down — the other three views still have their data, so this returns
 // an empty list and only the BDE view ends up blank.
 async function fetchBde(startDate, endDate) {
   try {
-    const res = await fetch(`/api/bde?startDate=${startDate}&endDate=${endDate}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "BDE fetch failed");
+    const res = await fetch(`/api/bde?startDate=${startDate}&endDate=${endDate}`, { headers: await authHeader() });
+      const data = await readApiJson(res, "BDE data");
     return data.bdes || [];
   } catch (e) {
     console.error("TV board: BDE fetch failed (other views unaffected):", e.message);
@@ -231,18 +319,47 @@ function buildBdeTeams(bdes, wDays) {
     const members = team.members.map(name => {
       const b = byName[name.toLowerCase()] || {};
       let score = 0;
-      const rows = team.kpis.map(k => {
-        const target = Math.max(1, Math.round(k.dailyTarget * wDays));
+      // A member the team names in memberKpis does a different job and is scored
+      // on their own rows, not on the team funnel — scoringFor() in
+      // bde-scorecard.html makes the same choice.
+      const ownKpis = (team.memberKpis || {})[name];
+      const kpis = ownKpis || team.kpis;
+      const funnelWeights = ownKpis ? null : team.funnelWeights;
+      // A funnel-scored member takes their score from conversion; their KPI rows
+      // are read-only context and carry no weight.
+      if (funnelWeights) {
+        const conv = bdeFunnelConv(b);
+        for (const [label, weight] of Object.entries(funnelWeights)) {
+          const raw = conv[BDE_STAGE_OF_LABEL[label]];
+          const pct = raw === null || raw === undefined ? null : Math.min(BDE_CONV_CAP, raw);
+          score += (pct || 0) * weight;
+        }
+      }
+      const rows = kpis.map(k => {
+        // Display row: shown for context, contributes nothing to the score.
+        if (k.display) return {
+          label: k.label, note: `${k.note} · not scored`,
+          actual: k.get(b), target: null, pctLabel: "—", color: "#6b7499", bar: "0",
+        };
+        // A conversion KPI takes its denominator from the previous funnel
+        // stage rather than a configured daily rate — see the same note in
+        // bde-scorecard.html, which must agree with this.
+        const target = k.targetOf ? k.targetOf(b) : Math.max(1, Math.round(k.dailyTarget * wDays));
         const actual = k.get(b);
-        const pct = Math.min(150, target > 0 ? (actual / target) * 100 : 0);
-        score += pct * k.weight;
+        // Same 150 ceiling for both kinds, so a conversion row matches the
+        // CONV% shown in the funnel — see the note in bde-scorecard.html.
+        const cap = 150;
+        // Undefined rather than zero when the previous stage is empty, so the
+        // board shows a dash instead of claiming 0% — see bde-scorecard.html.
+        const pct = target > 0 ? Math.min(cap, (actual / target) * 100) : null;
+        if (!funnelWeights) score += (pct || 0) * k.weight;   // undefined earns nothing
         return {
           label: k.label,
           note: `${k.note} · ${Math.round(k.weight * 100)}%`,
           actual, target,
-          pctLabel: Math.round(pct) + "%",
-          color: barColor(pct),
-          bar: Math.min(100, (pct / 150) * 100).toFixed(0),
+          pctLabel: pct === null ? "—" : Math.round(pct) + "%",
+          color: pct === null ? "#6b7499" : barColor(pct),
+          bar: pct === null ? "0" : Math.min(100, (pct / 150) * 100).toFixed(0),
         };
       });
       score = Math.round(score);
@@ -257,7 +374,17 @@ function buildBdeTeams(bdes, wDays) {
     const avg = members.length ? Math.round(members.reduce((s, m) => s + m.score, 0) / members.length) : 0;
     return {
       name: team.name, score: avg, tier: zone(avg),
-      note: team.kpis.map(k => `${k.label} ${k.dailyTarget}/day (${Math.round(k.weight*100)}%)`).join(" · "),
+      // Named after the team's default, plus anyone measured differently — the
+      // note would otherwise claim all of Portal is on conversion when one of
+      // them is not. Matches the footer on bde-scorecard.html.
+      note: ((base) => {
+        const exceptions = Object.keys(team.memberKpis || {});
+        return exceptions.length ? `${base} · ${exceptions.join(", ")} on lead generation` : base;
+      })(team.funnelWeights
+        ? "Funnel conversion · " + Object.entries(team.funnelWeights).map(([l,w])=>`${l} ${Math.round(w*100)}%`).join(" · ")
+        : team.kpis.filter(k => !k.display).map(k => `${k.label} ${k.targetOf ? k.note : k.dailyTarget + "/day"} (${Math.round(k.weight*100)}%)`).join(" · ")),
+      // Board columns this team occupies, which is also its own inner column
+      // count — from the design. Today that is 2 + 1 + 1 = 4 columns total.
       span: members.length >= 4 ? 2 : 1,
       members,
     };
@@ -272,6 +399,94 @@ async function fetchLeaveMap(startDate, endDate) {
     const map = {}; rows.forEach(row => { map[row.person_name] = (map[row.person_name] || 0) + 1; });
     return map;
   } catch { return {}; }
+}
+
+// ── Form: streaks and rank movement ─────────────────────────────────────────
+// Today's board says how today is going. It cannot say whether someone is on a
+// run, or climbing, and that is the part people watch. Both come out of the
+// daily_kpi snapshots, which already store a finished score and zone per person
+// per day — nothing is recomputed here.
+//
+// On this deploy those snapshots are in the same project as everything else.
+const SNAPSHOT_SUPABASE_URL  = SUPABASE_URL;
+const SNAPSHOT_SUPABASE_ANON = SUPABASE_ANON;
+
+const ZONE_RANK = { gold: 4, green: 3, yellow: 2, orange: 1, red: 0 };
+// Thirty calendar days back is about twenty snapshots — deep enough for any
+// streak worth showing, small enough to stay one quick request.
+const FORM_LOOKBACK_DAYS = 30;
+
+// Weekends are never snapshotted, so "days" here means snapshot days, which are
+// working days. A day on leave ends a run rather than extending it: the board
+// should not credit a streak to someone who was not in.
+function buildForm(rows, todayISO) {
+  const dates = [...new Set(rows.map(r => r.date))].filter(d => d < todayISO).sort().reverse();
+  const byPerson = {};
+  rows.forEach(r => { (byPerson[r.person_name] ||= {})[r.date] = r; });
+
+  // Yesterday's finishing order, per role, so a builder is only ever compared
+  // with builders.
+  const prevRank = {};
+  if (dates.length) {
+    const last = dates[0];
+    ["Builder", "Closer"].forEach(role => {
+      rows.filter(r => r.date === last && r.role === role && !r.on_leave)
+          .sort((a, b) => (b.score || 0) - (a.score || 0))
+          .forEach((r, i) => { prevRank[r.person_name] = i + 1; });
+    });
+  }
+
+  const streak = {};
+  Object.entries(byPerson).forEach(([name, days]) => {
+    let n = 0, everGold = true;
+    for (const d of dates) {
+      const row = days[d];
+      if (!row || row.on_leave) break;
+      if ((ZONE_RANK[row.zone] ?? 0) < ZONE_RANK.green) break;
+      if (row.zone !== "gold") everGold = false;
+      n++;
+    }
+    streak[name] = { days: n, allGold: n > 0 && everGold };
+  });
+  return { prevRank, streak, days: dates.length };
+}
+
+function isoShift(iso, days) {
+  const d = new Date(iso + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function fetchForm(todayISO) {
+  const from = isoShift(todayISO, -FORM_LOOKBACK_DAYS);
+  try {
+    const r = await fetch(
+      `${SNAPSHOT_SUPABASE_URL}/rest/v1/daily_kpi?date=gte.${from}&date=lte.${todayISO}` +
+      `&select=date,person_name,role,score,zone,on_leave&order=date.desc&limit=5000`,
+      { headers: { apikey: SNAPSHOT_SUPABASE_ANON, Authorization: `Bearer ${SNAPSHOT_SUPABASE_ANON}` } });
+    if (!r.ok) throw new Error(`daily_kpi ${r.status}`);
+    return buildForm(await r.json(), todayISO);
+  } catch (e) {
+    // Form is decoration on top of a board that works without it.
+    console.error("TV board V2: form history unavailable (non-fatal):", e.message);
+    return { prevRank: {}, streak: {}, days: 0 };
+  }
+}
+
+// A person's run and their movement since the last snapshot, ready to render.
+function formFor(p, rankNow) {
+  const st = STATE.form.streak[p.name];
+  const prev = STATE.form.prevRank[p.name];
+  const moved = (!p.onLeave && prev != null) ? prev - rankNow : null;
+  return {
+    streakDays: st ? st.days : 0,
+    streakLabel: !p.onLeave && st && st.days > 0
+      ? `★ ${st.days}D ${st.allGold ? "GOLD" : "GREEN+"}` : "",
+    streakInk: st && st.allGold ? "#ffd740" : "#00e676",
+    move: moved,
+    moveLabel: moved == null ? "" : moved > 0 ? `▲${moved}` : moved < 0 ? `▼${-moved}` : "—",
+    moveInk: moved == null ? "#5b6488" : moved > 0 ? "#00e676" : moved < 0 ? "#ff4d6a" : "#5b6488",
+  };
 }
 
 // Working-hours day-fraction proration (today only) — mirrors index.html.
@@ -295,12 +510,11 @@ function monthStartET() { const p = etParts(); return `${p.year}-${p.month}-01`;
 // Eastern wall-clock hour as a decimal (e.g. 14.5 for 2:30pm).
 function etHour() { const p = etParts(); return Number(p.hour) + Number(p.minute) / 60; }
 function dayFraction(dateStr, isCustomRange) {
+  // Weekends carry no target. Without this the board showed prorated targets
+  // and live scores on a Saturday, unlike every other page.
+  if (Scoring.isWeekend(dateStr)) return 0;
   if (isCustomRange) return 1; // a picked historical range is always "full"
-  if (dateStr !== todayET()) return 1;
-  const h = etHour();
-  if (h <= WORK_START_H) return 0.01;
-  if (h >= WORK_END_H) return 1;
-  return (h - WORK_START_H) / WORK_HOURS;
+  return Scoring.dayFraction(dateStr);
 }
 
 // ── Promo slides ─────────────────────────────────────────────────────────────
@@ -372,10 +586,12 @@ async function loadPromoSlides() {
 
 // ── State ────────────────────────────────────────────────────────────────────
 let STATE = {
-  view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders, 3 BDE, then promo slides
+  view: 0,          // 0 Builders, 1 Closers, 2 Team Leaders, 3 BDE
   page: 0,          // which slide of the Builder board (see builderPages)
-  elapsed: 0,
+  takeover: false,  // the full-screen champion, once per full rotation
+  eventIdx: 0,      // which of today's real events the toast is showing
   paused: false,    // set by goToView() when someone jumps to a view on purpose
+  elapsed: 0,
   scale: 1,
   now: new Date(),
   builders: [],
@@ -387,33 +603,105 @@ let STATE = {
   mtdByName: {},
   mtdRange: null,
   leaveMap: {},
+  // Streaks and rank movement from the daily snapshots; empty until loaded, and
+  // stays empty if that fetch fails.
+  form: { prevRank: {}, streak: {}, days: 0 },
   isLive: true,
   rangeStart: null,
   rangeEnd: null,
 };
 const DATA_VIEWS = 4;
 const totalViews = () => DATA_VIEWS + ACTIVE_SLIDES.length;
+const ROTATE_SECONDS = 30;   // data boards
+const SLIDE_SECONDS  = 10;   // promo slides
+const secondsForView = v => (v >= DATA_VIEWS ? SLIDE_SECONDS : ROTATE_SECONDS);
+const TAKEOVER_SECONDS = 12;    // long enough to land, short enough not to hide the board
+const EVENT_SECONDS = 10;       // one toast per ten seconds, cycling today's events
+
+// The Builder board splits across slides rather than shrinking to fit. Eighteen
+// builders on one screen meant five columns of four, and at that row count the
+// cards are too short to read from across the floor. Nine to a slide keeps them
+// at the size they were designed for and just takes two turns instead of one.
+const BUILDERS_PER_PAGE = 9;
+// Ten BDEs on one screen put the seven-person LinkedIn team into four rows of
+// cards too small to read. Six is what fits at a readable size.
+const BDE_PER_PAGE = 6;
+
+// Split evenly, so ten builders give two slides of five rather than nine and a
+// lone card on its own screen.
+// Teams, in board order, with their health score. Built from the people
+// actually in the report, so a transfer or a new lead shows up without a config
+// edit; the config order goes first so the familiar left-to-right layout does
+// not shuffle. Sorted best-first only where a winner is wanted, not here.
+function teamHealth() {
+  const all = [...STATE.builders, ...STATE.closers];
+  const configOrder = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
+  const present = new Set(all.map(m => m.team).filter(n => n && n !== "—"));
+  const names = [
+    ...configOrder.filter(n => present.has(n)),
+    ...[...present].filter(n => !configOrder.includes(n)).sort(),
+  ];
+  return names.map(name => {
+    const members = all.filter(m => m.team === name);
+    // On-leave members count as 0 toward the average, so health reflects the
+    // whole roster rather than just who is in today.
+    const health = members.length ? Math.round(members.reduce((s, m) => s + m.score, 0) / members.length) : 0;
+    return { name, members, health };
+  });
+}
+
+// How many slides a view is split across.
+function pagesFor(view) {
+  if (view >= DATA_VIEWS) return 1;            // a poster is a single view
+  return view === 0 ? builderPages().length : view === 3 ? bdePages().length : 1;
+}
+
+function bdePages() {
+  const teams = STATE.bdeTeams;
+  if (!teams.length) return [teams];
+  // Two slides while the whole board fits in two; the split falls where the
+  // running head-count first passes half, so the slides stay close in size.
+  const total = teams.reduce((n, t) => n + t.members.length, 0);
+  if (total <= BDE_PER_PAGE) return [teams];
+  const out = [[]];
+  let run = 0;
+  teams.forEach(t => {
+    if (run >= Math.ceil(total / 2) && out[out.length - 1].length) { out.push([]); run = 0; }
+    out[out.length - 1].push(t);
+    run += t.members.length;
+  });
+  return out;
+}
+
+function builderPages() {
+  const b = STATE.builders;
+  const n = Math.max(1, Math.ceil(b.length / BUILDERS_PER_PAGE));
+  const per = Math.ceil(b.length / n);
+  return Array.from({ length: n }, (_, i) => b.slice(i * per, (i + 1) * per));
+}
 
 // ── View switcher ────────────────────────────────────────────────────────────
-// The progress pips double as buttons, so a board can be taken straight to a
+// The progress pips double as buttons, so the board can be taken straight to a
 // view instead of waiting out the rotation. Jumping also pauses the rotation —
 // the whole point is to sit on one view — and clicking the current view again
 // resumes it. Built by one function because two places re-render the strip.
 const VIEW_LABELS = ["Builders", "Closers", "Team Leads", "BDE"];
+
 const viewLabel = i => VIEW_LABELS[i] || "Slide " + (i - DATA_VIEWS + 1);
 
 function pipsMarkup(view) {
   return Array.from({ length: totalViews() }, (_, i) => {
+    const label = viewLabel(i);
     // The Builders pip covers every slide of that view, so the bar tracks the
     // whole run rather than resetting to empty when the second slide appears.
-    const pages = i === 0 ? builderPages().length : 1;
+    const pages = pagesFor(i);
     const done  = i === 0 ? STATE.page : 0;
-    const fill = i < view ? 100 : i > view ? 0
+    const fill = STATE.takeover ? 100 : i < view ? 100 : i > view ? 0
       : Math.min(100, ((done + STATE.elapsed / secondsForView(i)) / pages) * 100).toFixed(0);
     const on = i === view;
-    return `<button class="tv-pip" data-view="${i}" title="${on && STATE.paused ? "Resume rotation" : "Jump to " + viewLabel(i)}"
+    return `<button class="tv-pip" data-view="${i}" title="${on && STATE.paused ? "Resume rotation" : "Jump to " + label}"
       style="all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:2px 4px">
-      <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;color:${on ? "#eef0f7" : "#5c6488"}">${viewLabel(i)}</span>
+      <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;color:${on ? "#eef0f7" : "#5c6488"}">${label}</span>
       <span style="display:block;width:56px;height:5px;border-radius:3px;background:rgba(255,255,255,0.12);overflow:hidden">
         <span style="display:block;height:5px;border-radius:3px;background:${on && STATE.paused ? "#ffab00" : "#eef0f7"};width:${fill}%"></span>
       </span>
@@ -423,7 +711,7 @@ function pipsMarkup(view) {
 
 function goToView(i) {
   if (i === STATE.view) { STATE.paused = !STATE.paused; }
-  else { STATE.view = i; STATE.page = 0; STATE.elapsed = 0; STATE.paused = true; }
+  else { STATE.view = i; STATE.page = 0; STATE.takeover = false; STATE.elapsed = 0; STATE.paused = true; }
   render();
   runCountUp();
 }
@@ -433,32 +721,6 @@ document.addEventListener("click", e => {
   const b = e.target.closest && e.target.closest(".tv-pip");
   if (b) goToView(Number(b.dataset.view));
 });
-// A leaderboard needs long enough to read a column of names and numbers; a
-// poster is taken in at a glance. One duration for both meant that dropping the
-// slides to ten seconds would have flipped the data boards just as fast, so the
-// two are separate.
-//
-// With 18 brag-board slides the full cycle is 4x30 + 18x10 = 300s, so each data
-// board comes round once every five minutes rather than every two and a half.
-// That is the deliberate cost of showing the whole set.
-const ROTATE_SECONDS = 30;   // data boards
-const SLIDE_SECONDS  = 10;   // promo slides
-const secondsForView = v => (v >= DATA_VIEWS ? SLIDE_SECONDS : ROTATE_SECONDS);
-
-// The Builder board splits across slides rather than shrinking to fit. Eighteen
-// builders on one screen meant five columns of four, and at that row count the
-// cards are too short to read from across the floor. Nine to a slide keeps them
-// at the size they were designed for and just takes two turns instead of one.
-const BUILDERS_PER_PAGE = 9;
-
-// Split evenly, so ten builders give two slides of five rather than nine and a
-// lone card on its own screen.
-function builderPages() {
-  const b = STATE.builders;
-  const n = Math.max(1, Math.ceil(b.length / BUILDERS_PER_PAGE));
-  const per = Math.ceil(b.length / n);
-  return Array.from({ length: n }, (_, i) => b.slice(i * per, (i + 1) * per));
-}
 
 // Don't paint until real data has arrived — painting an empty board on
 // initial fit(), then again on the resize event(s) the browser fires right
@@ -504,6 +766,9 @@ function onResize() {
 let _consecutiveLoadFailures = 0;
 async function loadData() {
   const today = todayET();
+  // Cached for 15 minutes inside loadTargetOverrides, so an unattended board
+  // still picks up a target change without refetching every 3 minutes.
+  await loadTargetOverrides((STATE.isLive ? today : STATE.rangeStart).slice(0, 7));
   const startDate = STATE.isLive ? today : STATE.rangeStart;
   const endDate = STATE.isLive ? today : STATE.rangeEnd;
   try {
@@ -513,7 +778,7 @@ async function loadData() {
     // per refresh. A failure here leaves those tiles on the daily numbers
     // rather than taking the board down.
     const mtdStart = STATE.isLive ? monthStartET() : startDate;
-    const [leaveMap, builderData, closerData, bdes, mtdCloserData] = await Promise.all([
+    const [leaveMap, builderData, closerData, bdes, mtdCloserData, form] = await Promise.all([
       fetchLeaveMap(startDate, endDate),
       fetchRole("Builder", startDate, endDate),
       fetchRole("Closer", startDate, endDate),
@@ -524,7 +789,10 @@ async function loadData() {
             console.error("TV board: month-to-date closers failed (non-fatal):", e.message);
             return null;
           }),
+      fetchForm(endDate),
     ]);
+
+    STATE.form = form;
 
     STATE.mtdRange = mtdCloserData ? { start: mtdStart, end: endDate } : null;
     STATE.mtdByName = {};
@@ -559,9 +827,14 @@ async function loadData() {
   render();
 }
 
-// The person's own teamLead, which api/report.js now derives from their Zoho
-// role. It used to be filled from the Team_Lead field on whichever record was
-// read first, which left eight people blank and put two on the wrong card.
+// The person's own teamLead, which the report already derived from their Zoho
+// role — the same source the main dashboard groups by, so the two agree.
+//
+// The config roster is a fallback only. It is hand-maintained and had drifted:
+// Varsha Mahto, Yash Parikh and Dev Sompura were all appearing under the wrong
+// lead on this board, and Mr Aadil Thim and Sarim Mohammed were missing from it
+// entirely because nobody had added them. Reading the payload means a transfer
+// or a joiner shows up here without anyone editing a list.
 function teamOf(person) {
   if (person && person.teamLead) return person.teamLead;
   const m = SALES_TEAM_MEMBERS.find(x => x.name === (person && person.name));
@@ -593,21 +866,21 @@ function gridFor(n) {
 function personCard(p, i, isCloser, s = 1) {
   const z = v => Math.max(1, Math.round(v * s));   // scale a px value to the card's density
   const t = TIER[p.tier];
+  const rank = i + 1;
+  const f = formFor(p, rank);
   const kdef = isCloser
     ? [["calls", p.calls, C_T.calls], ["minutes", p.minutes, C_T.minutes], ["pres held", p.presentations, C_T.presentations], ["deals", p.dealsClosed, 1]]
     : [["calls", p.calls, B_T.calls], ["minutes", p.minutes, B_T.minutes], ["q. leads", p.leads, B_T.leads], ["disco", p.discoveries, B_T.discoveries], ["pres bkd", p.presBooked, B_T.presBooked], ["pres cmp", p.presCompleted, B_T.presCompleted]];
   const celebrate = p.tier === "gold";
-  // Only this score text counts up (0% -> final) — everything else in the
-  // card is static, so it's tagged for animateScores() to update directly
-  // instead of being rebuilt by render() on every animation step.
   const scoreFinal = p.onLeave ? "" : Math.round(p.score);
+
   const kpisHtml = kdef.map(([label, val, tgt]) => {
     const pct = cap(val, tgt);
     const bar = Math.min(100, (pct / 150) * 100).toFixed(0);
     return `<div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:${z(7)}px ${z(9)}px;display:flex;flex-direction:column;justify-content:center;gap:${z(4)}px;min-width:0;overflow:hidden">
       <div style="font-size:${z(10)}px;font-weight:800;letter-spacing:${(1.2*s).toFixed(1)}px;color:#8e98bb;text-transform:uppercase;white-space:nowrap;overflow:hidden">${label}</div>
       <div style="display:flex;align-items:baseline;gap:${z(4)}px;min-width:0">
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:${z(26)}px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#eef0f7">${val}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:${z(26)}px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:#eef0f7">${val}</span>
         <span style="font-size:${z(11)}px;font-weight:700;color:#6c769b;white-space:nowrap">/ ${tgt}</span>
       </div>
       <div style="height:${z(4)}px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
@@ -616,39 +889,53 @@ function personCard(p, i, isCloser, s = 1) {
     </div>`;
   }).join("");
 
-  return `<div style="position:relative;border-radius:14px;padding:${z(14)}px ${z(16)}px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:${p.onLeave?"none":"0 0 26px "+t.rgb(0.3)+", inset 0 0 46px "+t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:${z(10)}px;min-height:0;animation:omRise 0.5s ease both">
-    ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
-    <div style="display:flex;align-items:center;gap:${z(10)}px;flex:none;min-width:0">
-      <div style="position:relative;flex:none;width:${z(46)}px;height:${z(46)}px">
-        <div style="width:100%;height:100%;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
+  // Gold cards get embers drifting up off the bottom edge as well as the sweep.
+  const embers = celebrate ? [[18, 5, 4.4, 0], [47, 4, 5.6, 1.3], [74, 6, 6.2, 2.6]].map(([x, d, dur, delay]) =>
+    `<div style="position:absolute;bottom:8px;left:${x}%;width:${d}px;height:${d}px;border-radius:50%;background:#ffd740;box-shadow:0 0 ${d * 2}px #ffd740;animation:omEmber ${dur}s ease-out infinite ${delay}s"></div>`).join("") : "";
+
+  return `<div style="position:relative;border-radius:14px;padding:${z(14)}px ${z(16)}px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:${p.onLeave ? "none" : "0 0 26px " + t.rgb(0.3) + ", inset 0 0 46px " + t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:${z(10)}px;min-height:0;animation:omRise 0.5s ease both">
+    ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>
+    <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden">${embers}</div>` : ""}
+
+    <div style="display:flex;align-items:flex-start;gap:${z(11)}px;flex:none;min-width:0">
+      <!-- Photo with the rank and the day's movement stacked underneath, rather
+           than a badge pinned to the photo's corner: at this size the rank is a
+           number people read, not a decoration. -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:${z(5)}px;flex:none;width:${z(58)}px">
+        <div style="width:${z(58)}px;height:${z(58)}px;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
           ${avatarBgHtml(p.name)}
-          <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:${z(16)}px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
+          <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:${z(19)}px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
         </div>
-        <span style="position:absolute;left:${z(-4)}px;bottom:${z(-3)}px;min-width:${z(19)}px;height:${z(19)}px;line-height:${z(17)}px;text-align:center;border-radius:999px;padding:0 ${z(4)}px;box-sizing:border-box;font-family:'Nunito Sans',sans-serif;font-size:${z(12)}px;font-weight:900;color:${i===0&&!p.onLeave?"#0b0a04":t.ink};background:${i===0&&!p.onLeave?t.ink:"#141826"};border:1px solid ${t.line}">${p.onLeave?"—":i+1}</span>
+        <div style="display:flex;align-items:center;gap:${z(4)}px">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:${z(19)}px;font-weight:900;line-height:1;padding:${z(1)}px ${z(7)}px;border-radius:6px;color:${rank === 1 && !p.onLeave ? "#0b0a04" : t.ink};background:${rank === 1 && !p.onLeave ? t.ink : "#141826"}">${p.onLeave ? "—" : rank}</span>
+          ${f.moveLabel && f.move !== 0 ? `<span style="font-size:${z(11)}px;font-weight:800;color:${f.moveInk};white-space:nowrap">${f.moveLabel}</span>` : ""}
+        </div>
       </div>
-      <!-- Name and team read across on one line ("Avni Gajjar - Soham"), with
-           the card label stacked under the score. The label used to sit on this
-           line too, which cost ~85px and truncated every longer name on the
-           Closer board; the score column had that height going spare. -->
-      <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:${z(7)}px;overflow:hidden">
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:${z(19)}px;font-weight:800;line-height:1.1;color:${p.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto">${p.name}</span>
-        ${p.team ? `<span style="flex:0 6 auto;font-size:${z(12)}px;font-weight:700;letter-spacing:${(0.8*s).toFixed(1)}px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.team}</span>` : ""}
+
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${z(27)}px;font-weight:800;line-height:1.02;letter-spacing:0.3px;color:${p.onLeave ? "#7a7a99" : "#f4f6fc"};overflow:hidden">${p.name}</div>
+        ${p.team ? `<div style="font-size:${z(12)}px;font-weight:700;letter-spacing:${(1.2*s).toFixed(1)}px;color:#7b86ad;text-transform:uppercase;margin-top:${z(2)}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.team}</div>` : ""}
+        <div style="display:inline-flex;align-items:center;margin-top:${z(5)}px;padding:${z(3)}px ${z(9)}px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
+          <span style="font-size:${z(11)}px;font-weight:900;letter-spacing:${(1.3*s).toFixed(1)}px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
+        </div>
       </div>
-      <div style="flex:none;width:${z(96)}px;display:flex;flex-direction:column;align-items:flex-end;gap:${z(3)}px">
-        <div class="${p.onLeave?'':'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:${z(32)}px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:${p.onLeave?"none":"0 0 20px "+t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
-        <span style="display:inline-flex;align-items:center;padding:${z(2)}px ${z(7)}px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
-          <span style="font-size:${z(9)}px;font-weight:900;letter-spacing:${(0.9*s).toFixed(1)}px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
-        </span>
+
+      <div style="text-align:right;flex:none;width:${z(92)}px">
+        <div class="${p.onLeave ? '' : 'tv-cnt'}" data-final="${scoreFinal}" style="font-family:'Barlow Condensed',sans-serif;font-size:${z(46)}px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:${p.onLeave ? "none" : "0 0 20px " + t.ink};font-variant-numeric:tabular-nums">${p.onLeave ? "—" : "0%"}</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(${isCloser?2:3},minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:${z(7)}px;flex:1;min-height:0">${kpisHtml}</div>
+
+    <div style="display:grid;grid-template-columns:repeat(${isCloser ? 2 : 3},minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:${z(7)}px;flex:1;min-height:0">${kpisHtml}</div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;gap:${z(8)}px;padding-top:${z(8)}px;border-top:1px solid rgba(255,255,255,0.08);font-size:${z(12)}px;font-weight:800;letter-spacing:0.4px;flex:none">
       <span style="color:#40c4ff">↙ ${p.inbound} in</span>
       <span style="color:#ff8a78">↗ ${p.outbound} out</span>
       <span style="color:#b388ff">✕ ${p.missed} miss</span>
+      ${f.streakLabel ? `<span style="color:${f.streakInk};white-space:nowrap">${f.streakLabel}</span>` : ""}
     </div>
-    ${p.onLeave ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,6,11,0.55);pointer-events:none">
-      <div style="padding:8px 18px;border:2px dashed rgba(150,150,200,0.4);border-radius:8px;transform:rotate(-11deg);font-family:'Nunito Sans',sans-serif;font-size:${z(24)}px;font-weight:900;letter-spacing:3px;color:rgba(160,160,205,0.6)">ON LEAVE</div>
+
+    ${p.onLeave ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,6,11,0.55);backdrop-filter:blur(1.5px);pointer-events:none">
+      <div style="padding:${z(8)}px ${z(18)}px;border:2px dashed rgba(150,150,200,0.4);border-radius:8px;transform:rotate(-11deg);font-family:'Barlow Condensed',sans-serif;font-size:${z(24)}px;font-weight:900;letter-spacing:${(3*s).toFixed(1)}px;color:rgba(160,160,205,0.6)">ON LEAVE</div>
     </div>` : ""}
   </div>`;
 }
@@ -694,7 +981,7 @@ function teamCard(team, members, rowSlots = members.length) {
   const statTile = (label, value, sub, color) => `
     <div style="flex:1;min-width:0;border-radius:11px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);padding:11px 14px">
       <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden">${label}</div>
-      <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;line-height:1.1;margin-top:3px;color:${color};font-variant-numeric:tabular-nums;white-space:nowrap">${value}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;line-height:1.1;margin-top:3px;color:${color};font-variant-numeric:tabular-nums;white-space:nowrap">${value}</div>
       <div style="font-size:11px;font-weight:700;color:#6c769b;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
     </div>`;
   // On-leave members count as 0 toward the team average (their score is
@@ -712,10 +999,10 @@ function teamCard(team, members, rowSlots = members.length) {
     return `<div style="min-height:0;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden">
       <div style="width:${z(40)}px;height:${z(40)}px;border-radius:50%;flex:none;border:1.5px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative">
         ${avatarBgHtml(m.name)}
-        <span style="position:absolute;font-family:'Nunito Sans',sans-serif;font-size:${z(14)}px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
+        <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:${z(14)}px;font-weight:900;color:${mt.ink};opacity:0">${initials(m.name)}</span>
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:${z(22)}px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${z(22)}px;font-weight:800;line-height:1.1;color:${m.onLeave?"#7a7a99":"#f4f6fc"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
         <div style="font-size:${z(11)}px;font-weight:800;letter-spacing:1.5px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${m.role}</div>
       </div>
       <div style="width:112px;flex:none">
@@ -723,19 +1010,19 @@ function teamCard(team, members, rowSlots = members.length) {
           <div style="height:5px;border-radius:3px;background:${mt.ink};width:${m.onLeave?0:Math.min(100,(m.score/150)*100).toFixed(0)}%"></div>
         </div>
       </div>
-      <div class="${m.onLeave?'':'tv-cnt'}" data-final="${memberScoreFinal}" style="width:78px;text-align:right;flex:none;font-family:'Nunito Sans',sans-serif;font-size:${z(28)}px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave ? "—" : "0%"}</div>
+      <div class="${m.onLeave?'':'tv-cnt'}" data-final="${memberScoreFinal}" style="width:78px;text-align:right;flex:none;font-family:'Barlow Condensed',sans-serif;font-size:${z(28)}px;font-weight:900;color:${mt.ink};font-variant-numeric:tabular-nums">${m.onLeave ? "—" : "0%"}</div>
     </div>`;
   }).join("");
 
   return `<div style="position:relative;border-radius:16px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 30px rgba(0,0,0,0.5);overflow:hidden;display:flex;flex-direction:column;animation:omRise 0.5s ease both">
     <div style="padding:20px 24px 16px;border-bottom:1px solid rgba(255,255,255,0.09);display:flex;align-items:flex-start;justify-content:space-between;gap:14px">
       <div>
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:40px;font-weight:900;line-height:1;letter-spacing:0.6px;color:${t.ink}">${team}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:40px;font-weight:900;line-height:1;letter-spacing:0.6px;color:${t.ink}">${team}</div>
         <div style="font-size:12px;font-weight:800;letter-spacing:2.2px;color:#7b86ad;text-transform:uppercase;margin-top:5px">TEAM HEALTH SCORE</div>
         <div style="display:inline-flex;margin-top:9px;padding:4px 11px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:12px;font-weight:900;letter-spacing:1.4px;white-space:nowrap;color:${t.ink}">${t.label}</div>
       </div>
       <div style="text-align:right">
-        <div class="tv-cnt" data-final="${health}" style="font-family:'Nunito Sans',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
+        <div class="tv-cnt" data-final="${health}" style="font-family:'Barlow Condensed',sans-serif;font-size:74px;font-weight:900;line-height:0.9;color:${t.ink};text-shadow:0 0 26px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
         <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:#7b86ad;margin-top:4px">${active.length} ACTIVE · ${members.length-active.length} ON LEAVE</div>
       </div>
     </div>
@@ -752,87 +1039,275 @@ function teamCard(team, members, rowSlots = members.length) {
 }
 
 // One BDE's card: KPI rows on top, summary funnel along the bottom.
-function bdeMemberCard(m) {
+// A BDE's card, built like a builder's: photo and rank on the left, name with
+// the team and tier under it, the score on the right, KPI rows, then the funnel
+// along the bottom.
+//
+// Every band except the rows is flex:none. Without that they shrank below their
+// own content on a team whose members fill four rows — LinkedIn's do — and the
+// tier chip ended up drawn over the first KPI row, and the funnel over the last.
+function bdeMemberCard(m, i = 0, s = 1) {
+  const z = v => Math.max(1, Math.round(v * s));
   const t = TIER[m.tier];
   const celebrate = m.tier === "gold";
-  // A display row (a lead-type breakdown) is context, not a target, so it
-  // carries target: null. Calling toLocaleString() on that threw, and the throw
-  // came out of render() — which left the whole board unpainted and stuck at
-  // whatever scale it last had, on every view, not just this one.
+  // A display row (the ICP lead-type breakdown) is context, not a target, so it
+  // carries target: null, and toLocaleString() on that throws.
   const num = v => (v === null || v === undefined || Number.isNaN(v)) ? null : Number(v).toLocaleString();
+
   const rowsHtml = m.rows.map(r => `
-    <div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:7px 10px;display:flex;flex-direction:column;gap:5px">
-      <div style="display:flex;align-items:baseline;gap:8px">
-        <span style="font-size:12px;font-weight:800;letter-spacing:0.9px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
-        <span style="flex:1;min-width:0;font-size:10px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${num(r.actual) ?? "—"}</span>
-        ${num(r.target) != null ? `<span style="font-size:11px;font-weight:700;color:#6c769b">/ ${num(r.target)}</span>` : ""}
-        <span style="font-size:13px;font-weight:900;color:${r.color};min-width:44px;text-align:right">${r.pctLabel}</span>
+    <div style="border-radius:9px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.06);padding:${z(7)}px ${z(10)}px;display:flex;flex-direction:column;justify-content:center;gap:${z(5)}px;min-width:0;overflow:hidden">
+      <div style="display:flex;align-items:baseline;gap:${z(8)}px;min-width:0">
+        <span style="font-size:${z(12)}px;font-weight:800;letter-spacing:0.9px;color:#c3cae0;text-transform:uppercase;white-space:nowrap">${r.label}</span>
+        <span style="flex:1;min-width:0;font-size:${z(10)}px;font-weight:700;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.note}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:${z(20)}px;font-weight:900;line-height:1;color:#eef0f7;font-variant-numeric:tabular-nums">${num(r.actual) ?? "—"}</span>
+        ${num(r.target) != null ? `<span style="font-size:${z(11)}px;font-weight:700;color:#6c769b;white-space:nowrap">/ ${num(r.target)}</span>` : ""}
+        <span style="font-size:${z(13)}px;font-weight:900;color:${r.color};min-width:${z(44)}px;text-align:right;white-space:nowrap">${r.pctLabel}</span>
       </div>
-      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
-        <div style="height:4px;border-radius:2px;background:${r.color};width:${r.bar}%"></div>
+      <div style="height:${z(4)}px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
+        <div style="height:${z(4)}px;border-radius:2px;background:${r.color};width:${r.bar}%"></div>
       </div>
     </div>`).join("");
 
   const funnelHtml = m.funnel.map(f => `
-    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
-      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.9px;color:#6c769b;text-transform:uppercase;white-space:nowrap">${f.label}</span>
-      <span style="font-family:'Nunito Sans',sans-serif;font-size:18px;font-weight:900;line-height:1;color:#c3cae0;font-variant-numeric:tabular-nums">${f.val}</span>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;overflow:hidden">
+      <span style="font-size:${z(10)}px;font-weight:800;letter-spacing:0.9px;color:#6c769b;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.label}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:${z(18)}px;font-weight:900;line-height:1;color:#c3cae0;font-variant-numeric:tabular-nums">${f.val}</span>
     </div>`).join("");
 
-  return `<div style="position:relative;border-radius:14px;padding:13px 15px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 22px ${t.rgb(0.26)}, inset 0 0 46px ${t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:9px;animation:omRise 0.5s ease both">
-    ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>` : ""}
-    <div style="display:flex;align-items:center;gap:11px">
-      <div style="width:52px;height:52px;border-radius:50%;flex:none;border:2px solid ${t.line};background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-family:'Nunito Sans',sans-serif;font-size:17px;font-weight:900;color:${t.ink}">${initials(m.name)}</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-family:'Nunito Sans',sans-serif;font-size:19px;font-weight:800;line-height:1.05;color:#f4f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#7b86ad;text-transform:uppercase;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.role} · TL ${m.tl}</div>
-        <div style="display:inline-flex;margin-top:5px;padding:3px 9px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05);font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</div>
+  const embers = celebrate ? [[18, 5, 4.4, 0], [47, 4, 5.6, 1.3], [74, 6, 6.2, 2.6]].map(([x, d, dur, delay]) =>
+    `<div style="position:absolute;bottom:8px;left:${x}%;width:${d}px;height:${d}px;border-radius:50%;background:#ffd740;box-shadow:0 0 ${d * 2}px #ffd740;animation:omEmber ${dur}s ease-out infinite ${delay}s"></div>`).join("") : "";
+
+  return `<div style="position:relative;border-radius:14px;padding:${z(13)}px ${z(15)}px;border:1.5px solid ${t.line};background:${t.bg};box-shadow:0 0 22px ${t.rgb(0.26)}, inset 0 0 46px ${t.rgb(0.06)};overflow:hidden;display:flex;flex-direction:column;gap:${z(9)}px;min-height:0;animation:omRise 0.5s ease both">
+    ${celebrate ? `<div style="position:absolute;top:0;bottom:0;left:0;width:150px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent);animation:omShine 4.2s ease-in-out infinite;pointer-events:none"></div>
+    <div style="position:absolute;inset:0;pointer-events:none;overflow:hidden">${embers}</div>` : ""}
+
+    <div style="display:flex;align-items:flex-start;gap:${z(11)}px;flex:none;min-width:0">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:${z(5)}px;flex:none;width:${z(52)}px">
+        <div style="width:${z(52)}px;height:${z(52)}px;border-radius:50%;position:relative;border:2px solid ${t.line};background:rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center">
+          ${avatarBgHtml(m.name)}
+          <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:${z(17)}px;font-weight:900;color:${t.ink};opacity:0">${initials(m.name)}</span>
+        </div>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:${z(17)}px;font-weight:900;line-height:1;padding:${z(1)}px ${z(7)}px;border-radius:6px;color:${i === 0 ? "#0b0a04" : t.ink};background:${i === 0 ? t.ink : "#141826"}">${i + 1}</span>
       </div>
-      <div class="tv-cnt" data-final="${m.score}" style="text-align:right;flex:none;width:84px;font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:0 0 20px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
+
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${z(21)}px;font-weight:800;line-height:1.04;color:#f4f6fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+        <div style="font-size:${z(11)}px;font-weight:700;letter-spacing:1px;color:#7b86ad;text-transform:uppercase;margin-top:${z(2)}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.role} · TL ${m.tl}</div>
+        <div style="display:inline-flex;align-items:center;margin-top:${z(5)}px;padding:${z(3)}px ${z(9)}px;border-radius:999px;border:1px solid ${t.ink};background:rgba(255,255,255,0.05)">
+          <span style="font-size:${z(11)}px;font-weight:900;letter-spacing:1.2px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</span>
+        </div>
+      </div>
+
+      <div style="text-align:right;flex:none;width:${z(84)}px">
+        <div class="tv-cnt" data-final="${m.score}" style="font-family:'Barlow Condensed',sans-serif;font-size:${z(34)}px;font-weight:900;line-height:0.95;white-space:nowrap;color:${t.ink};text-shadow:0 0 20px ${t.ink};font-variant-numeric:tabular-nums">0%</div>
+      </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;justify-content:center">${rowsHtml}</div>
-    <div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">${funnelHtml}</div>
+
+    <div style="display:flex;flex-direction:column;gap:${z(6)}px;flex:1;min-height:0;justify-content:center;overflow:hidden">${rowsHtml}</div>
+
+    <div style="display:flex;align-items:center;gap:${z(10)}px;padding-top:${z(8)}px;border-top:1px solid rgba(255,255,255,0.08);flex:none;min-width:0">${funnelHtml}</div>
   </div>`;
 }
 
 // A BDE team: header strip with the team average, then its member cards.
-function bdeTeamBlock(bt) {
+function bdeTeamBlock(bt, spanOverride) {
+  const span = spanOverride || bt.span;
   const t = TIER[bt.tier];
-  return `<div style="grid-column:span ${bt.span};min-width:0;display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;border:1px solid ${t.line};background:rgba(255,255,255,0.035)">
-      <div style="font-family:'Nunito Sans',sans-serif;font-size:22px;font-weight:900;letter-spacing:0.4px;color:${t.ink};white-space:nowrap">${bt.name}</div>
-      <div style="padding:2px 9px;border-radius:999px;border:1px solid ${t.ink};font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};white-space:nowrap">${t.label}</div>
+  // Teams do not have the same number of people, so a seven-person team's cards
+  // are half the height of a two-person team's. Shrink their contents to match
+  // rather than letting the bands collide — the same thing gridFor does for the
+  // Builder board.
+  const rows = Math.max(1, Math.ceil(bt.members.length / span));
+  const DENSITY = { 1: 1, 2: 0.94, 3: 0.8, 4: 0.66, 5: 0.56 };
+  const s = DENSITY[rows] || 0.5;
+  return `<div style="grid-column:span ${span};min-width:0;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;border:1px solid ${t.line};background:rgba(255,255,255,0.035);flex:none;min-width:0">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:0.4px;color:${t.ink};white-space:nowrap">${bt.name}</div>
+      <div style="padding:2px 9px;border-radius:999px;border:1px solid ${t.ink};font-size:11px;font-weight:900;letter-spacing:1.2px;color:${t.ink};white-space:nowrap;flex:none">${t.label}</div>
       <div style="flex:1;min-width:0;font-size:11px;font-weight:700;letter-spacing:0.8px;color:#6c769b;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bt.note}</div>
-      <div class="tv-cnt" data-final="${bt.score}" style="font-family:'Nunito Sans',sans-serif;font-size:28px;font-weight:900;line-height:1;white-space:nowrap;color:${t.ink};font-variant-numeric:tabular-nums">0%</div>
+      <div class="tv-cnt" data-final="${bt.score}" style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;line-height:1;white-space:nowrap;color:${t.ink};font-variant-numeric:tabular-nums;flex:none">0%</div>
     </div>
-    <div style="flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(${bt.span},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">
-      ${bt.members.map(bdeMemberCard).join("")}
+    <div style="flex:1;min-height:0;display:grid;gap:10px;grid-template-columns:repeat(${span},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">
+      ${bt.members.map((m, i) => bdeMemberCard(m, i, s)).join("")}
+    </div>
+  </div>`;
+}
+// Once per full rotation the board stops being a table and names one person at
+// 250px. Nothing new is fetched — it is the builder already sitting at #1 on a
+// board the floor has just watched go past.
+// Who leads the board about to appear, and the four numbers worth showing for
+// them. Returns null when that board has nobody to name.
+function championFor(view) {
+  const live = xs => xs.filter(x => !x.onLeave).sort((a, b) => b.score - a.score);
+  if (view === 1) {
+    const p = live(STATE.closers)[0];
+    return p && { p, kind: "TOP CLOSER", sub: "Closer" + (p.team ? " · " + p.team : ""), runners: live(STATE.closers),
+      stats: [["Follow-up Calls", p.calls], ["Call Minutes", p.minutes], ["Pres. Held", p.presentations], ["Deals Closed", p.dealsClosed]] };
+  }
+  if (view === 2) {
+    const teams = teamHealth().slice().sort((a, b) => b.health - a.health);
+    const t = teams[0];
+    if (!t) return null;
+    const active = t.members.filter(m => !m.onLeave);
+    const best = active.slice().sort((a, b) => b.score - a.score)[0];
+    return { p: { name: t.name, score: t.health, tier: zone(t.health), onLeave: false },
+      kind: "TOP TEAM", sub: `${active.length} active · ${t.members.length - active.length} on leave`,
+      runners: teams.map(x => ({ name: x.name, score: x.health })),
+      stats: [["Team Health", Math.round(t.health) + "%"], ["Members", t.members.length],
+              ["Golden Cards", t.members.filter(m => m.tier === "gold").length],
+              ["Top Scorer", best ? best.name.split(" ")[0] : "—"]] };
+  }
+  if (view === 3) {
+    const all = STATE.bdeTeams.flatMap(x => x.members);
+    const p = live(all)[0];
+    if (!p) return null;
+    const stage = k => { const f = (p.funnel || []).find(x => x.label === k); return f ? f.val : 0; };
+    return { p, kind: "TOP BDE", sub: `${p.role}${p.tl ? " · TL " + p.tl : ""}`, runners: live(all),
+      stats: [["Generated", stage("Generated")], ["Qualified", stage("Qualified")],
+              ["Pres. Held", stage("Pres. Held")], ["Enrolled", stage("Enrolled")]] };
+  }
+  const p = live(STATE.builders)[0];
+  return p && { p, kind: "TOP BUILDER", sub: "Builder" + (p.team ? " · " + p.team : ""), runners: live(STATE.builders),
+    stats: [["Outbound Calls", p.calls], ["Call Minutes", p.minutes], ["Qualified Leads", p.leads], ["Pres. Completed", p.presCompleted]] };
+}
+
+function takeoverHtml() {
+  const champ = championFor(STATE.view);
+  if (!champ) return "";
+  const { p, stats } = champ;
+  const t = TIER[p.tier], rgb = RGB[p.tier];
+  const f = formFor(p, 1);
+  // Cheap confetti: fixed-seed positions so it does not re-shuffle on every
+  // half-second tick, and skipped entirely for a red-zone leader.
+  const confetti = p.tier === "gold" || p.tier === "green"
+    ? Array.from({ length: 46 }, (_, i) => {
+        const x = (i * 37) % 100, dur = 3.2 + ((i * 7) % 22) / 10, delay = ((i * 13) % 40) / 10;
+        const c = [t.ink, "#ffffff", "#40c4ff"][i % 3];
+        return `<div style="position:absolute;top:0;left:${x}%;width:${6 + (i % 3) * 2}px;height:${10 + (i % 4) * 3}px;background:${c};border-radius:2px;opacity:0;animation:omFall ${dur}s linear infinite ${delay}s"></div>`;
+      }).join("")
+    : "";
+  // The name, the 250px avatar and the score share one row inside 1740px of
+  // content box. Step-down thresholds alone left about 19px of margin on the
+  // longest name, which is close enough to clipping that a slightly wider
+  // glyph would do it — so size the name from the space actually left over.
+  // The per-character figures are measured, not guessed: at these weights a
+  // name runs to about 0.51em per character and "150%" to about 0.59em, the
+  // percent sign being the wide one. Both are rounded up here, so the estimate
+  // errs toward a smaller name rather than a clipped board.
+  const AVATAR_W = 250, GAP = 56, PAD = 90, TRACK = BOARD_W - PAD * 2;
+  const scoreText = `${Math.round(p.score)}%`;
+  const scoreW = Math.ceil(scoreText.length * 250 * 0.60);
+  const nameRoom = TRACK - AVATAR_W - GAP * 2 - scoreW - 48;   // slack, checked against every name on the roster
+  const nameSize = Math.max(56, Math.min(132, Math.floor(nameRoom / (p.name.length * 0.52))));
+  const runner = champ.runners[1];
+  const gap = runner ? `${Math.max(0, Math.round(p.score - runner.score))} POINTS CLEAR OF ${runner.name.toUpperCase()}` : "";
+
+  return `<div style="position:absolute;inset:0;z-index:70;overflow:hidden;background:#05060b;animation:omTakeover 0.7s ease both">
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,rgba(${rgb},0.22) 0%,rgba(7,7,13,0) 62%)"></div>
+    <div style="position:absolute;left:50%;top:44%;width:2400px;height:2400px;margin:-1200px 0 0 -1200px;opacity:0.22;background:conic-gradient(${t.ink} 0deg 6deg,transparent 6deg 30deg,${t.ink} 30deg 36deg,transparent 36deg 60deg);animation:omSpin 70s linear infinite;mask-image:radial-gradient(circle,#000 12%,transparent 62%);-webkit-mask-image:radial-gradient(circle,#000 12%,transparent 62%)"></div>
+    ${confetti}
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 90px">
+      <div style="display:flex;align-items:center;gap:18px;animation:omNameIn 0.7s ease 0.1s both">
+        <div style="height:1px;width:120px;background:linear-gradient(90deg,transparent,${t.ink})"></div>
+        <div style="font-size:22px;font-weight:900;letter-spacing:11px;color:${t.ink}">${champ.kind}</div>
+        <div style="height:1px;width:120px;background:linear-gradient(90deg,${t.ink},transparent)"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:56px;margin-top:34px;max-width:100%">
+        <div style="position:relative;flex:none;animation:omNameIn 0.8s ease 0.18s both">
+          <div style="position:absolute;inset:-30px;border-radius:50%;border:2px solid ${t.line};animation:omRingOut 3.4s ease-out infinite"></div>
+          <div style="position:absolute;inset:-30px;border-radius:50%;border:2px solid ${t.line};animation:omRingOut 3.4s ease-out infinite 1.7s"></div>
+          <div style="width:250px;height:250px;border-radius:50%;border:4px solid ${t.ink};background:rgba(255,255,255,0.06);overflow:hidden;box-shadow:0 0 90px rgba(${rgb},0.5);display:flex;align-items:center;justify-content:center;position:relative">
+            ${avatarBgHtml(p.name)}
+            <span style="position:absolute;font-family:'Barlow Condensed',sans-serif;font-size:88px;font-weight:900;color:${t.ink};opacity:0">${initials(p.name)}</span>
+          </div>
+        </div>
+        <div style="animation:omNameIn 0.8s ease 0.26s both;min-width:0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:${nameSize}px;font-weight:900;line-height:0.88;color:#f7f8fc;text-transform:uppercase;white-space:nowrap">${p.name}</div>
+          <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+            <div style="padding:6px 18px;border-radius:999px;border:2px solid ${t.ink};font-size:17px;font-weight:900;letter-spacing:2.6px;color:${t.ink};text-transform:uppercase;white-space:nowrap">${t.label}</div>
+            <div style="font-size:17px;font-weight:800;letter-spacing:2.4px;color:#8e98bb;text-transform:uppercase;white-space:nowrap">${champ.sub}</div>
+          </div>
+          ${f.streakLabel ? `<div style="font-size:16px;font-weight:800;letter-spacing:2.6px;color:${f.streakInk};margin-top:14px">${f.streakLabel.replace("★", "★ ")} RUNNING</div>` : ""}
+        </div>
+        <div style="text-align:right;flex:none;width:${scoreW}px;animation:omNameIn 0.8s ease 0.34s both">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:250px;font-weight:900;line-height:0.82;color:${t.ink};text-shadow:0 0 70px rgba(${rgb},0.5);font-variant-numeric:tabular-nums;white-space:nowrap">${scoreText}</div>
+          <div style="font-size:16px;font-weight:900;letter-spacing:3px;color:#8e98bb;margin-top:8px">SCORECARD RESULT</div>
+          ${gap ? `<div style="font-size:15px;font-weight:800;letter-spacing:2px;line-height:1.25;color:${t.ink};margin-top:8px">${gap}</div>` : ""}
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:52px;animation:omNameIn 0.8s ease 0.44s both">
+        ${stats.map(([k, v]) => `<div style="min-width:230px;padding:18px 26px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:13px;font-weight:900;letter-spacing:2.4px;color:#8e98bb;text-transform:uppercase;white-space:nowrap">${k}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:56px;font-weight:900;line-height:1;color:#f4f6fc;font-variant-numeric:tabular-nums">${typeof v === "number" ? v.toLocaleString() : (v || "—")}</div>
+        </div>`).join("")}
+      </div>
     </div>
   </div>`;
 }
 
+function todaysEvents() {
+  const all = [...STATE.builders, ...STATE.closers].filter(p => !p.onLeave);
+  const ev = [];
+  STATE.closers.filter(c => !c.onLeave && (c.dealsClosed || 0) > 0)
+    .sort((a, b) => (b.revenue || 0) - (a.revenue || 0))
+    .forEach(c => ev.push({ kind: "DEAL CLOSED", who: c.name, ink: "#00e676",
+      detail: (c.revenue ? "$" + Math.round(c.revenue).toLocaleString() + " collected" : "closed today")
+              + (c.dealsClosed > 1 ? ` · ${c.dealsClosed} today` : "") }));
+  all.filter(p => p.tier === "gold").sort((a, b) => b.score - a.score).slice(0, 4)
+    .forEach(p => ev.push({ kind: "GOLDEN CARD", who: p.name, ink: "#ffd740",
+      detail: `${Math.round(p.score)}% · ${p.team || (p.role === "Closer" ? "Closer" : "Builder")}` }));
+  Object.entries(STATE.form.streak)
+    .filter(([name, st]) => st.days >= 3 && all.some(p => p.name === name))
+    .sort((a, b) => b[1].days - a[1].days).slice(0, 3)
+    .forEach(([name, st]) => ev.push({ kind: "ON A RUN", who: name, ink: st.allGold ? "#ffd740" : "#00e676",
+      detail: `${st.days} days ${st.allGold ? "holding gold" : "green or better"}` }));
+  const topLeads = STATE.builders.filter(b => !b.onLeave && (b.leads || 0) > 0)
+    .sort((a, b) => b.leads - a.leads)[0];
+  if (topLeads) ev.push({ kind: "QUALIFIED LEADS", who: topLeads.name, ink: "#b388ff",
+    detail: `${topLeads.leads} today · most on the floor` });
+  return ev;
+}
+
+function eventToastInner() {
+  const ev = todaysEvents();
+  if (!ev.length) return "";
+  const e = ev[STATE.eventIdx % ev.length];
+  return `<div style="display:flex;align-items:center;gap:14px;padding:12px 20px;border-radius:14px;border:1.5px solid ${e.ink};background:linear-gradient(120deg,rgba(10,12,20,0.96),rgba(10,12,20,0.82));box-shadow:0 14px 44px rgba(0,0,0,0.6),0 0 34px ${e.ink}44;animation:omEventIn 0.5s ease both">
+    <div style="width:40px;height:40px;border-radius:11px;flex:none;background:${e.ink}22;border:1px solid ${e.ink};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;color:${e.ink}">${initials(e.who)}</div>
+    <div style="min-width:0">
+      <div style="font-size:11px;font-weight:900;letter-spacing:2.2px;color:${e.ink};text-transform:uppercase;white-space:nowrap">${e.kind}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;line-height:1.05;color:#f4f6fc;white-space:nowrap">${e.who}</div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.6px;color:#8e98bb;white-space:nowrap">${e.detail}</div>
+    </div>
+  </div>`;
+}
+
+function paintToast() {
+  const el = document.getElementById("tv-toast");
+  if (el) el.innerHTML = STATE.takeover ? "" : eventToastInner();
+}
+
 function render() {
   document.getElementById("board-root").style.display = "block";
-  const { builders, closers, bdeTeams } = STATE;
 
-  // Promo slides sit after the three data boards and render full-bleed, with
-  // none of the board chrome — they are posters, not dashboards.
+  // Promo slides sit after the data boards and render full-bleed — they are
+  // posters, not dashboards. The 3-minute refresh also calls render(), and
+  // rebuilding the markup would recreate the <img> and make the poster flash,
+  // so only touch the DOM when the slide has actually changed.
   if (STATE.view >= DATA_VIEWS) {
     const src = ACTIVE_SLIDES[STATE.view - DATA_VIEWS];
-    // The 3-minute data refresh also calls render(). Rebuilding the markup
-    // would recreate the <img> and make the poster flash, so only touch the
-    // DOM when the slide has actually changed.
     if (_renderedSlide !== src) {
       _renderedSlide = src;
       document.getElementById("board-root").innerHTML = `
-        <div style="position:fixed;inset:0;background:#fbf8f0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        <div style="position:fixed;inset:0;background:#fbf8f0;display:flex;align-items:center;justify-content:center">
           <img src="${src}" alt="" style="width:100%;height:100%;object-fit:contain;display:block">
         </div>`;
     }
     return;
   }
-  _renderedSlide = null;   // back on a data board — next slide must rebuild
+  _renderedSlide = null;   // back on a data board — the next slide must rebuild
+
+  const { builders, closers, bdeTeams } = STATE;
 
   const clock = STATE.now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
   const dateLabel = STATE.now.toLocaleDateString("en-US", { timeZone: "America/New_York", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
@@ -844,12 +1319,22 @@ function render() {
   let cardsHtml = "", cols = 5, viewTitle = "", viewSub = "", leaderHtml = "", leaderScoreFinal = 0, totalsHtml = "", tickerText = "";
 
   if (view === 3) {
-    // Auto-arrange: as many columns as the teams need (2+1+1 = 4 today), so
-    // they sit on one row with no empty columns — matching the design.
-    cols = Math.max(1, bdeTeams.reduce((s, t) => s + t.span, 0));
-    cardsHtml = bdeTeams.map(bdeTeamBlock).join("");
+    // Auto-arrange: the board is exactly as wide as the teams need, so they
+    // sit on one row with no empty columns. A fixed 3 left a third of the
+    // board blank and squeezed the 4-member team into quarter-height cards.
+    const bPages = bdePages();
+    const bPage  = Math.min(STATE.page, bPages.length - 1);
+    const shownTeams = bPages[bPage] || [];
+    const soloSpan = shownTeams.length === 1
+      ? Math.max(1, Math.min(4, Math.ceil(shownTeams[0].members.length / 2)))
+      : null;
+    cols = soloSpan || Math.max(1, shownTeams.reduce((s, t) => s + t.span, 0));
+    cardsHtml = shownTeams.map(t => bdeTeamBlock(t, soloSpan)).join("");
     viewTitle = "BDE Scorecard";
-    viewSub = "Today · weighted lead-generation targets";
+    viewSub = (bPages.length > 1
+      ? `${shownTeams.map(t => t.name.replace(" Team", "")).join(" · ")} · slide ${bPage + 1}/${bPages.length} · `
+      : "") + "Today · weighted lead-generation targets";
+    // The leader strip, totals and ticker stay on the whole board, not the slide.
     const allBdes = bdeTeams.flatMap(t => t.members);
     const top = allBdes.slice().sort((a, b) => b.score - a.score)[0] || { name: "—", score: 0, tier: "red" };
     leaderHtml = `${initials(top.name)}|${top.name}|TOP BDE · ${TIER[top.tier].label}`;
@@ -868,23 +1353,7 @@ function render() {
       + "   ·   QUALIFIED " + sumStage("Qualified").toLocaleString()
       + "   ·   ENROLLED " + sumStage("Enrolled").toLocaleString() + "   ·   ";
   } else if (view === 2) {
-    const all = [...builders, ...closers];
-    // Teams come from the people actually in the report, so a transfer or a new
-    // lead shows up without a code edit. Config order first, so the board's
-    // familiar left-to-right layout does not shuffle.
-    const configOrder = [...new Set(SALES_TEAM_MEMBERS.map(m => m.team))];
-    const present = new Set(all.map(m => m.team).filter(n => n && n !== "—"));
-    const teamNames = [
-      ...configOrder.filter(n => present.has(n)),
-      ...[...present].filter(n => !configOrder.includes(n)).sort(),
-    ];
-    const teams = teamNames.map(name => {
-      const members = all.filter(m => m.team === name);
-      // On-leave members count as 0 toward the average, so health reflects
-      // the whole roster rather than just who's active today.
-      const health = members.length ? Math.round(members.reduce((s,m) => s+m.score, 0) / members.length) : 0;
-      return { name, members, health };
-    });
+    const teams = teamHealth();
     cols = teams.length || 1;
     // One shared row count across the cards: without it each card divided its
     // own height by its own member count, so an eight-person team's rows sat
@@ -953,7 +1422,7 @@ function render() {
     <div style="flex:1;min-width:0;padding:11px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.03);display:flex;flex-direction:column;justify-content:center;gap:5px">
       <div style="font-size:12px;font-weight:800;letter-spacing:1.9px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.label}</div>
       <div style="display:flex;align-items:baseline;gap:7px">
-        <span style="font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.color}">${t.value}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:${t.color}">${t.value}</span>
         <span style="font-size:12px;font-weight:700;color:#6c769b">${t.hint}</span>
       </div>
       <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden">
@@ -968,6 +1437,8 @@ function render() {
       <div style="position:absolute;width:1000px;height:1000px;right:-240px;bottom:-360px;border-radius:50%;background:radial-gradient(circle,rgba(0,230,118,0.13) 0%,transparent 62%);animation:omDrift 34s ease-in-out infinite reverse"></div>
     </div>
     <div id="board-canvas" style="width:1920px;height:1080px;flex:none;position:relative;transform-origin:50% 50%;transform:scale(${STATE.scale.toFixed(4)})">
+      ${STATE.takeover ? takeoverHtml() : ""}
+      <div id="tv-toast" style="position:absolute;right:40px;bottom:88px;z-index:60"></div>
       <div style="position:absolute;inset:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:92px auto 1fr 54px;padding:22px 40px 18px;gap:14px">
 
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;border-bottom:1px solid rgba(255,255,255,0.09);padding-bottom:14px">
@@ -975,7 +1446,7 @@ function render() {
             <img src="/e92c4bab-2eb7-4e8f-bc76-e00992442f1f.png" alt="ElevateMe" style="height:46px;width:auto;display:block" />
             <div style="width:1px;height:42px;background:rgba(255,255,255,0.12)"></div>
             <div style="display:flex;flex-direction:column;gap:2px;max-width:1000px;min-width:0">
-              <div style="font-family:'Nunito Sans',sans-serif;font-size:38px;font-weight:900;letter-spacing:1px;line-height:1;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${viewTitle}</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:38px;font-weight:900;letter-spacing:1px;line-height:1;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${viewTitle}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;color:#7b86ad;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${viewSub}</div>
             </div>
           </div>
@@ -994,7 +1465,7 @@ function render() {
               </div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <div id="tv-clock" style="font-family:'Nunito Sans',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
+              <div id="tv-clock" style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">${clock}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:2.4px;color:#7b86ad">EST</div>
             </div>
             <div id="tv-pips" style="display:flex;align-items:center;gap:7px">${pipsHtml}</div>
@@ -1004,13 +1475,13 @@ function render() {
         <div style="display:flex;align-items:stretch;gap:12px;min-width:0">
           <div style="display:flex;align-items:center;gap:14px;padding:12px 20px;border-radius:12px;border:1px solid rgba(255,215,64,0.34);background:linear-gradient(100deg,rgba(255,215,64,0.14),rgba(255,215,64,0.02));flex:0 0 510px;min-width:0;position:relative;overflow:hidden">
             <div style="position:absolute;inset:0;width:120px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.16),transparent);animation:omShine 5s ease-in-out infinite"></div>
-            <div style="font-family:'Nunito Sans',sans-serif;font-size:13px;font-weight:800;letter-spacing:2.6px;color:#ffd740;writing-mode:vertical-rl;transform:rotate(180deg)">LEADER</div>
-            <div style="width:56px;height:56px;border-radius:50%;flex:none;background:rgba(255,215,64,0.14);border:2px solid #ffd740;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Nunito Sans',sans-serif;font-size:20px;font-weight:900;color:#ffd740">${linit}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:2.6px;color:#ffd740;writing-mode:vertical-rl;transform:rotate(180deg)">LEADER</div>
+            <div style="width:56px;height:56px;border-radius:50%;flex:none;background:rgba(255,215,64,0.14);border:2px solid #ffd740;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:#ffd740">${linit}</div>
             <div style="flex:1;min-width:0">
-              <div style="font-family:'Nunito Sans',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;letter-spacing:0.6px;line-height:1.05;color:#ffe484;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lname}</div>
               <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:#a2914f;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lsub}</div>
             </div>
-            <div class="tv-cnt" data-final="${leaderScoreFinal}" style="font-family:'Nunito Sans',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">0%</div>
+            <div class="tv-cnt" data-final="${leaderScoreFinal}" style="font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;line-height:1;color:#ffd740;text-shadow:0 0 22px rgba(255,215,64,0.55);font-variant-numeric:tabular-nums">0%</div>
           </div>
           ${totalsBlockHtml}
         </div>
@@ -1043,6 +1514,7 @@ function render() {
   // the window here rather than trusting STATE means a resize that arrived
   // before the board had data still lands correctly on this first paint.
   applyScale();
+  paintToast();
 
   // render() is also called directly (resize, the 3-min data refresh) with
   // no animateScores() to follow — snap every score straight to its final
@@ -1112,6 +1584,7 @@ function animateScores() {
   step();
 }
 
+let _toastT = 0;
 let _tick = null;
 function startTicking() {
   if (_tick) clearInterval(_tick);
@@ -1125,12 +1598,26 @@ function startTicking() {
       // signal the TV's browser fails to send. Returns immediately when the
       // scale has not moved.
       applyScale();
+      // The toast runs on its own clock and repaints only itself — a full
+      // render would replay every card's entrance animation every ten seconds.
+      _toastT += 0.5;
+      if (_toastT >= EVENT_SECONDS) { _toastT = 0; STATE.eventIdx += 1; paintToast(); }
       if (STATE.paused) { updateChrome(); return; }
       STATE.elapsed += 0.5;
-      if (STATE.elapsed >= secondsForView(STATE.view)) {
-        const pages = STATE.view === 0 ? builderPages().length : 1;
-        if (STATE.page + 1 < pages) { STATE.page += 1; }
-        else { STATE.page = 0; STATE.view = (STATE.view + 1) % totalViews(); }
+      if (STATE.elapsed >= (STATE.takeover ? TAKEOVER_SECONDS : secondsForView(STATE.view))) {
+        if (STATE.takeover) {
+          // The takeover introduces the board it is standing in front of.
+          STATE.takeover = false;
+        } else {
+          const pages = pagesFor(STATE.view);
+          if (STATE.page + 1 < pages) { STATE.page += 1; }
+          else {
+            STATE.page = 0;
+            STATE.view = (STATE.view + 1) % totalViews();
+            // A poster introduces itself; only a data board gets a champion.
+            STATE.takeover = STATE.view < DATA_VIEWS;
+          }
+        }
         STATE.elapsed = 0;
         runCountUp();
       } else {
@@ -1141,15 +1628,16 @@ function startTicking() {
     }
   }, 500);
 }
+// Refresh underlying data periodically (every 3 min) while live, so numbers
+// stay current without a full page reload.
 let _dataRefresh = null;
 function startDataRefresh() {
   if (_dataRefresh) clearInterval(_dataRefresh);
   _dataRefresh = setInterval(() => {
     if (STATE.isLive) loadData();
-    // Re-check the slide list too, so uploading/removing/reordering a slide
-    // from Manage Slides shows up on the TV within a few minutes — no
-    // restart needed. If the list shrank while a now-missing slide happened
-    // to be showing, snap back to view 0 rather than rendering a blank slot.
+    // Re-check the slide list too, so uploading, removing or reordering a
+    // slide shows up on the TV within a few minutes. If the list shrank while
+    // a now-missing slide was showing, snap back rather than render a blank.
     loadPromoSlides().then(() => {
       if (STATE.view >= totalViews()) { STATE.view = 0; STATE.elapsed = 0; }
     });
@@ -1172,7 +1660,7 @@ function initBoard() {
   });
   // Kiosk safeguard: force a full reload every 4 hours so a tab left open
   // indefinitely always ends up running the latest deployed code and a
-  // fresh session, without anyone needing to walk over and refresh it.
+  // fresh auth session, without anyone needing to walk over and refresh it.
   setTimeout(() => location.reload(), 4 * 60 * 60 * 1000);
 }
 
@@ -1201,7 +1689,8 @@ document.getElementById("btn-reset-live").onclick = () => {
   startTicking();
 };
 
-// No login on test — board starts immediately.
+// ── Auth ─────────────────────────────────────────────────────────────────────
+// No login on test — the board starts immediately.
 initBoard();
 </script>
 </body>
