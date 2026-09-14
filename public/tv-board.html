@@ -125,22 +125,26 @@ const SALES_TEAM_MEMBERS = [
 // the board actually uses from them are defined here against test's own values.
 // Keeping the shape identical is what lets the rest of this file stay a
 // straight copy of the live board.
-const BD_TEAM_LEADS = {
-  "Ronak Khant": "Dhanraj Solanki", "Jiya Chandrawanshi": "Dhanraj Solanki",
-  "Bhoomi Barot": "Dhanraj Solanki", "Sunil Patel": "Dhanraj Solanki",
-  "Meet Patel": "Dhanraj Solanki", "Heer Nakum": "Prem Thakar", "Ajay Darbar": "Prem Thakar",
-};
-// BD roster, in the shape bdMembersOf() expects.
+// BD roster, lifted from the live config.js so the two boards name the same
+// people. This deploy's own copy had gone stale: it was missing five BDEs and
+// still listed one who has left.
 const BD_TEAM_MEMBERS = [
-  { name: "Ronak Khant",        kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Ronak Khant"] },
-  { name: "Jiya Chandrawanshi", kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Jiya Chandrawanshi"] },
-  { name: "Bhoomi Barot",       kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Bhoomi Barot"] },
-  { name: "Heer Nakum",         kpiTeam: "LinkedIn Team", team: BD_TEAM_LEADS["Heer Nakum"] },
-  { name: "Ajay Darbar",        kpiTeam: "Portal Team",   team: BD_TEAM_LEADS["Ajay Darbar"] },
-  { name: "Sunil Patel",        kpiTeam: "Portal Team",   team: BD_TEAM_LEADS["Sunil Patel"] },
-  { name: "Meet Patel",         kpiTeam: "Referral Team", team: BD_TEAM_LEADS["Meet Patel"] },
+  { name: "Ronak Khant",           team: "Dhanraj Solanki", kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Jiya Chandrawanshi",    team: "Dhanraj Solanki", kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Bhoomi Barot",          team: "Dhanraj Solanki", kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Dhiraj Prajapati",      team: "Dhanraj Solanki", kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Manish Sonagara",       team: "Dhanraj Solanki", kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Sunil Patel",           team: "Dhanraj Solanki", kpiTeam: "Portal Team",   role: "BD" },
+  { name: "Meet Patel (BD)", display: "Meet Patel", team: "Dhanraj Solanki", kpiTeam: "Referral Team", role: "BD" },
+  { name: "Ujjaval Karangiya",     team: "Prem Thakar",     kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Rakesh Prajapati",      team: "Prem Thakar",     kpiTeam: "LinkedIn Team", role: "BD" },
+  { name: "Ajay Darbar",           team: "Prem Thakar",     kpiTeam: "Portal Team",   role: "BD" },
 ];
-const bdMembersOf = t => BD_TEAM_MEMBERS.filter(m => m.kpiTeam === t).map(m => m.name);
+// Live keys these on the display name — "Meet Patel (BD)" is a distinct person
+// from the closer of the same name, but the board shows them as "Meet Patel".
+const bdDisplay = m => m.display || m.name;
+const BD_TEAM_LEADS = Object.fromEntries(BD_TEAM_MEMBERS.map(m => [bdDisplay(m), m.team]));
+const bdMembersOf = kpiTeam => BD_TEAM_MEMBERS.filter(m => m.kpiTeam === kpiTeam).map(bdDisplay);
 
 // No login on this deploy, so the gate is open and the overlay is a no-op.
 const ALLOWED_EMAILS = [];
