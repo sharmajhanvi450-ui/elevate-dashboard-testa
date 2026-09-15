@@ -151,6 +151,42 @@ const ALLOWED_EMAILS = [];
 const APP_USERS_READY = Promise.resolve();
 const isPageAllowed = () => true;
 const showAuthOverlay = () => {};
+// ── Company holidays ────────────────────────────────────────────────────────
+// Live keeps this in config.js. The table is in this deploy's own Supabase
+// project — it is the one both environments share — so no extra credentials.
+//
+// Only rows marked closes_floor are applied. The calendar also carries holidays
+// the floor works straight through (3 July 2026 took 717 calls across 13
+// people), and excluding those would hand back a day's target for a day worked.
+let HOLIDAYS = [];
+
+// Resolves once the list has reached Scoring. loadData() awaits it before it
+// counts a working day, or the first paint prices a closed day as a full one
+// and every target jumps when the fetch lands.
+const HOLIDAYS_READY = (async () => {
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/holidays?select=date,name,closes_floor,note&order=date.asc`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } });
+    if (!r.ok) throw new Error("holidays " + r.status);
+    HOLIDAYS = await r.json();
+  } catch (e) {
+    // No list means every weekday counts, which is what this board did before —
+    // wrong on a holiday, but not broken, and it says so in the log.
+    console.error("Holidays unavailable, treating every weekday as a working day:", e.message);
+    HOLIDAYS = [];
+  }
+  Scoring.setClosedDays(HOLIDAYS.filter(h => h.closes_floor).map(h => h.date));
+  return HOLIDAYS;
+})();
+
+// The next closing holiday on or after `fromISO`, or null.
+function nextClosedHoliday(fromISO) {
+  const from = fromISO || Scoring.todayET();
+  return HOLIDAYS.filter(h => h.closes_floor && h.date >= from)
+                 .sort((a, b) => a.date.localeCompare(b.date))[0] || null;
+}
+
 // Two more helpers the live config.js supplies. Both already swallow their own
 // failures, so a missing kpi_target_overrides table on this project just means
 // no overrides, which is the state this board was in anyway.
@@ -770,6 +806,9 @@ function onResize() {
 let _consecutiveLoadFailures = 0;
 async function loadData() {
   const today = todayET();
+  // Working days depend on the holiday list, so it has to land before any
+  // target is worked out. Cached after the first resolve.
+  await HOLIDAYS_READY;
   // Cached for 15 minutes inside loadTargetOverrides, so an unattended board
   // still picks up a target change without refetching every 3 minutes.
   await loadTargetOverrides((STATE.isLive ? today : STATE.rangeStart).slice(0, 7));

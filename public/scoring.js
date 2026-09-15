@@ -152,12 +152,29 @@ const Scoring = (() => {
     const dow = new Date(dateStr + "T12:00:00Z").getUTCDay();
     return dow === 0 || dow === 6;
   };
+
+  // Company holidays that actually close the floor, as YYYY-MM-DD. Loaded from
+  // the holidays table at startup; empty until then, so nothing here changes
+  // behaviour on its own.
+  //
+  // Only days marked closes_floor belong in this set. The calendar carries
+  // holidays the floor works through — 3 July 2026 took 717 calls — and
+  // dropping those would hand everyone a day's target back for a day they
+  // worked.
+  let _closedDays = new Set();
+  const setClosedDays = dates => { _closedDays = new Set(dates || []); };
+  const isClosedDay = dateStr => _closedDays.has(dateStr);
+
+  // A day nobody is expected to work: a weekend, or a holiday that closed the
+  // floor. This is what carries no target — work done on such a day still
+  // counts toward the actuals, it just is not asked for.
+  const isNonWorkingDay = dateStr => isWeekend(dateStr) || isClosedDay(dateStr);
   const todayET = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
   // Fraction of the working day elapsed on `dateStr`, in ET.
   //   fullDay: treat today as complete (the dashboard's Full Day toggle)
   function dayFraction(dateStr, { fullDay = false } = {}) {
-    if (isWeekend(dateStr)) return 0;
+    if (isNonWorkingDay(dateStr)) return 0;
     if (fullDay) return 1;
     const today = todayET();
     if (dateStr !== today) return 1;              // any other weekday is complete
@@ -168,7 +185,7 @@ const Scoring = (() => {
     return (h - WORK_START_H) / WORK_HOURS;
   }
 
-  // Working days in view across a range. Weekends contribute 0.
+  // Working days in view across a range. Weekends and closed holidays are 0.
   function totalDayFraction(startDate, endDate, opts) {
     let total = 0;
     const d = new Date(startDate + "T12:00:00Z");
@@ -200,7 +217,7 @@ const Scoring = (() => {
       const iso = d.toISOString().slice(0, 10);
       const m = iso.slice(0, 7);
       all[m] = (all[m] || 0) + 1;
-      if (!isWeekend(iso)) work[m] = (work[m] || 0) + 1;
+      if (!isNonWorkingDay(iso)) work[m] = (work[m] || 0) + 1;
       d.setUTCDate(d.getUTCDate() + 1);
     }
     const counts = Object.keys(work).length ? work : all;
@@ -222,5 +239,6 @@ const Scoring = (() => {
     resolveOverride, personTargets, personTargetsFor, personWeights, weightSum, dealThresholds,
     builder, closer, zone, zoneCloser,
     dayFraction, totalDayFraction, rangeDays, isWeekend, todayET, dominantMonth,
+    setClosedDays, isClosedDay, isNonWorkingDay,
   };
 })();
