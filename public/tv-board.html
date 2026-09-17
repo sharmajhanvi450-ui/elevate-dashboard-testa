@@ -80,10 +80,12 @@
 <div id="board-root" style="display:none"></div>
 
 <script>
-// Test environment — no auth anywhere, this page's own Supabase project (same
-// one api/report.js / api/refresh.js / attendance use on test).
-const SUPABASE_URL  = "https://czfsjrvngiojjjevmvtz.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN6ZnNqcnZuZ2lvampqZXZtdnR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODc0NzIsImV4cCI6MjA5ODA2MzQ3Mn0.IbK1th8wcdrHOgJL1y5kQE3De1c0HSe0ju4Q9vNQ9BQ";
+// No auth on this deploy. The data all lives in the one Supabase project the
+// live pages use — holidays, daily_kpi, attendance, target overrides and the
+// promo slides — since the two projects were merged. This board shows live
+// numbers and always has; it simply used to read them from a second copy.
+const SUPABASE_URL  = "https://ugghpsupgqycsnvssseo.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnZ2hwc3VwZ3F5Y3NudnNzc2VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMzc1NjAsImV4cCI6MjA5NzcxMzU2MH0.8DY8CP-F3o2loh2Ierkjm1iVyA9qOXPwpzHFIqY5vZI";
 
 // Sales roster (inlined — test has no shared config.js).
 // Fallback only — teamOf() below prefers the teamLead the report derives from
