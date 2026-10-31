@@ -168,7 +168,17 @@ const Scoring = (() => {
   // A day nobody is expected to work: a weekend, or a holiday that closed the
   // floor. This is what carries no target — work done on such a day still
   // counts toward the actuals, it just is not asked for.
-  const isNonWorkingDay = dateStr => isWeekend(dateStr) || isClosedDay(dateStr);
+  // Weekend dates the floor actually works, as YYYY-MM-DD. The mirror image of
+  // the closed-holiday set: a Saturday listed here is priced as an ordinary
+  // working day, targets prorated by the clock and all.
+  let _openDays = new Set();
+  const setOpenDays = dates => { _openDays = new Set(dates || []); };
+  const isOpenDay = dateStr => _openDays.has(dateStr);
+
+  // An explicitly opened day wins over both rules below it: it is only ever set
+  // for a day somebody decided the floor was working.
+  const isNonWorkingDay = dateStr =>
+    isOpenDay(dateStr) ? false : (isWeekend(dateStr) || isClosedDay(dateStr));
   const todayET = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
   // Fraction of the working day elapsed on `dateStr`, in ET.
@@ -240,5 +250,6 @@ const Scoring = (() => {
     builder, closer, zone, zoneCloser,
     dayFraction, totalDayFraction, rangeDays, isWeekend, todayET, dominantMonth,
     setClosedDays, isClosedDay, isNonWorkingDay,
+    setOpenDays, isOpenDay,
   };
 })();

@@ -162,6 +162,14 @@ const showAuthOverlay = () => {};
 // people), and excluding those would hand back a day's target for a day worked.
 let HOLIDAYS = [];
 
+// Weekend days the floor worked, as YYYY-MM-DD — scored as ordinary working
+// days. Kept in step with WORKING_WEEKENDS in the live repo's config.js.
+const WORKING_WEEKENDS = [
+  "2026-09-26",   // Saturday — floor worked
+  "2026-10-24",   // Saturday — floor worked
+  "2026-10-31",   // Saturday — floor worked
+];
+
 // Resolves once the list has reached Scoring. loadData() awaits it before it
 // counts a working day, or the first paint prices a closed day as a full one
 // and every target jumps when the fetch lands.
@@ -179,6 +187,7 @@ const HOLIDAYS_READY = (async () => {
     HOLIDAYS = [];
   }
   Scoring.setClosedDays(HOLIDAYS.filter(h => h.closes_floor).map(h => h.date));
+  Scoring.setOpenDays(WORKING_WEEKENDS);
   return HOLIDAYS;
 })();
 
@@ -554,7 +563,9 @@ function etHour() { const p = etParts(); return Number(p.hour) + Number(p.minute
 function dayFraction(dateStr, isCustomRange) {
   // Weekends carry no target. Without this the board showed prorated targets
   // and live scores on a Saturday, unlike every other page.
-  if (Scoring.isWeekend(dateStr)) return 0;
+  // Asks Scoring rather than the calendar, so a worked Saturday is priced as a
+  // working day here too.
+  if (Scoring.isNonWorkingDay(dateStr)) return 0;
   if (isCustomRange) return 1; // a picked historical range is always "full"
   return Scoring.dayFraction(dateStr);
 }
